@@ -1,0 +1,67 @@
+# ===============================
+# Build output
+# ===============================
+build/
+Release/
+cmake-build-*/
+*.dSYM/
+
+# ===============================
+# JUCE framework (zu groß für Git, wird via CI heruntergeladen)
+# ===============================
+JUCE/
+juce_binarydata_FUNKY_MOOSE_AMPData/
+
+# ===============================
+# macOS
+# ===============================
+.DS_Store
+.AppleDouble
+.LSOverride
+__MACOSX/
+
+# ===============================
+# IDE / Editor
+# ===============================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ===============================
+# Generated JUCE / CMake files
+# ===============================
+CMakeCache.txt
+CMakeFiles/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+
+# ===============================
+# Xcode
+# ===============================
+*.xcworkspace
+*.xcodeproj
+DerivedData/
+
+# ===============================
+# Binary plugin files (nicht ins Repo!)
+# ===============================
+*.vst3
+*.component
+*.app
+
+# ===============================
+# Release Artefakte / Distribution
+# ===============================
+*.zip
+*.dmg
+DMG_STAGING/
+
+# ===============================
+# Backup / Temp files
+# ===============================
+*.bak
+*.tmp
+*.orig
+*.save
