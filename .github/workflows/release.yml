@@ -1,0 +1,169 @@
+name: Release FunkyMoose Amp
+
+on:
+  push:
+    tags:
+      - 'v*'   # Triggered by: git tag v1.0.0-beta.1 && git push --tags
+
+jobs:
+  # ============================================================
+  # macOS Build
+  # ============================================================
+  build-macos:
+    name: macOS (VST3 + AU + Standalone)
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        id: cache-juce
+        uses: actions/cache@v4
+        with:
+          path: juce_install
+          key: juce-8.0.6-macos
+
+      - name: Download & Install JUCE
+        if: steps.cache-juce.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git juce_src
+          cmake -S juce_src -B juce_build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/juce_install"
+          cmake --build juce_build --target install --parallel
+
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/juce_install"
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Zip macOS Plugins
+        run: |
+          cd build/FUNKY_MOOSE_AMP_VST3_artefacts/Release
+          zip -r "${GITHUB_WORKSPACE}/FunkyMooseAmp-macOS-VST3.zip"       "VST3/"
+          zip -r "${GITHUB_WORKSPACE}/FunkyMooseAmp-macOS-AU.zip"         "AU/"
+          zip -r "${GITHUB_WORKSPACE}/FunkyMooseAmp-macOS-Standalone.zip" "Standalone/"
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: |
+            FunkyMooseAmp-macOS-VST3.zip
+            FunkyMooseAmp-macOS-AU.zip
+            FunkyMooseAmp-macOS-Standalone.zip
+
+  # ============================================================
+  # Windows Build
+  # ============================================================
+  build-windows:
+    name: Windows (VST3 + Standalone)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache JUCE
+        id: cache-juce
+        uses: actions/cache@v4
+        with:
+          path: juce_install
+          key: juce-8.0.6-windows
+
+      - name: Download & Install JUCE
+        if: steps.cache-juce.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git juce_src
+          cmake -S juce_src -B juce_build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX="${env:GITHUB_WORKSPACE}/juce_install"
+          cmake --build juce_build --config Release --target install --parallel
+        shell: pwsh
+
+      - name: Configure
+        run: |
+          cmake -S . -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="${env:GITHUB_WORKSPACE}/juce_install"
+        shell: pwsh
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+        shell: pwsh
+
+      - name: Zip Windows Plugins
+        run: |
+          $rel = "build/FUNKY_MOOSE_AMP_VST3_artefacts/Release"
+          Compress-Archive -Path "$rel/VST3/*"       -DestinationPath "FunkyMooseAmp-Windows-VST3.zip"
+          Compress-Archive -Path "$rel/Standalone/*" -DestinationPath "FunkyMooseAmp-Windows-Standalone.zip"
+        shell: pwsh
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            FunkyMooseAmp-Windows-VST3.zip
+            FunkyMooseAmp-Windows-Standalone.zip
+
+  # ============================================================
+  # Create GitHub Release mit allen Dateien
+  # ============================================================
+  release:
+    name: Publish GitHub Release
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # Nötig um Releases zu erstellen
+
+    steps:
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-macos
+          path: release-files/
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: release-files/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "FunkyMoose Amp ${{ github.ref_name }}"
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
+          body: |
+            ## 🦌 FunkyMoose Amp ${{ github.ref_name }}
+
+            Bass Guitar Amp Simulation für macOS und Windows.
+
+            ### Downloads
+            | Datei | Beschreibung |
+            |-------|-------------|
+            | `FunkyMooseAmp-macOS-VST3.zip` | VST3 für macOS (Universal: Apple Silicon + Intel) |
+            | `FunkyMooseAmp-macOS-AU.zip` | Audio Unit für Logic, GarageBand etc. |
+            | `FunkyMooseAmp-macOS-Standalone.zip` | Standalone App für macOS |
+            | `FunkyMooseAmp-Windows-VST3.zip` | VST3 für Windows |
+            | `FunkyMooseAmp-Windows-Standalone.zip` | Standalone App für Windows |
+
+            ### Installation macOS
+            - **VST3**: Entpacken → nach `/Library/Audio/Plug-Ins/VST3/`
+            - **AU**: Entpacken → nach `/Library/Audio/Plug-Ins/Components/`
+            - **Standalone**: Entpacken → nach `/Applications/`
+            - Beim ersten Start: *Systemeinstellungen → Datenschutz → App erlauben*
+
+            ### Installation Windows
+            - **VST3**: Entpacken → nach `C:\Program Files\Common Files\VST3\`
+
+            ---
+            *Bei Problemen oder Feedback → Issues Tab nutzen* 🎸
+          files: release-files/*
