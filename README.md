@@ -1,35 +1,92 @@
-Funky Moose Amp – FULL CMake Project (VST3 + AU + Standalone)
+# Funky Moose Amp 🦌🔊
 
-This is a complete, buildable JUCE CMake project skeleton with:
-- New panel textures (panel_base + panel_wear_v2)
-- Knob overlays (metal_tile, knob_spec, knob_scratches)
-- Elch RMS glow animation (Preset B smoothing)
-- Standalone app icon (FunkyMoose.icns)
+![Release](https://img.shields.io/github/v/release/blubass/FunkyMooseAmp)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue)
+![Formats](https://img.shields.io/badge/formats-VST3%20%7C%20AU%20%7C%20Standalone-orange)
+![Status](https://img.shields.io/badge/status-Beta-green)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-IMPORTANT
-1) You must have JUCE built/installed and adjust JUCE_DIR in CMakeLists.txt.
-2) This is a UI+project skeleton. Merge your real DSP & full parameter set into PluginProcessor.
+A clean, punchy bass amp built for funk, soul, R&B and modern slap.\
+Ein cleaner, druckvoller Bass-Amp für Funk, Soul, R&B und moderne
+Slap-Sounds.
 
-Build:
-  mkdir build
-  cd build
-  cmake .. -DCMAKE_BUILD_TYPE=Release
-  cmake --build . --config Release
+------------------------------------------------------------------------
 
-Outputs (macOS):
-- Standalone: Funky Moose Amp.app
-- AU: Funky Moose Amp.component
-- VST3: Funky Moose Amp.vst3
+## 🇬🇧 English
 
+### Concept
 
-## New Elch Asset
-- Includes `Assets/elch_new.png` as BinaryData and sets it on the ElchComponent in PluginEditor.
+Funky Moose Amp focuses on: - Fast transient response\
+- Clean core tone\
+- Tight, controlled low end\
+- Mix-ready articulation
 
-## Future Plans (Upcoming)
-1. **DMG Installer Creation**
-   - Create a fully branded `.dmg` installer for easy distribution.
-   - **Design Ideas**:
-     - Custom background image ("Plug me in!" graphic with cable pointing to the folder).
-     - Custom volume icon (Elch Head) for the mounted disk image.
-     - Custom folder layout (Funky Moose on the left, Amp/Speaker on the right).
-   - Use `hdiutil` and AppleScript to automate the build.
+The goal is simple: **great feel under the fingers.**
+
+### Modules
+
+-   Amp / Tone (clean base + musical EQ)\
+-   VCA-style Compressor (fast attack, Punch mode, optional
+    auto-makeup)\
+-   Octaver, Envelope Filter, Chorus, Phaser\
+-   Master section (Tuner, Mono-Maker, Gate)\
+-   Cab section with selectable options + optional tube-style saturation
+
+### Beta Feedback
+
+I'm especially interested in: 1. Playability & dynamics\
+2. Input gain behavior (active vs passive basses)\
+3. CPU usage & oversampling\
+4. Workflow clarity
+
+Report issues here:\
+https://github.com/blubass/FunkyMooseAmp/issues
+
+### Security / Privacy
+
+-   Fully offline\
+-   No network access\
+-   No telemetry or tracking\
+-   No background services
+
+Standalone may request microphone/audio permission on macOS because it
+processes live input.
+
+------------------------------------------------------------------------
+
+## 🇩🇪 Deutsch
+
+### Konzept
+
+Der Funky Moose Amp legt den Fokus auf: - Schnelle Transienten\
+- Klaren Grundsound\
+- Straffen, kontrollierten Bassbereich\
+- Gute Durchsetzungsfähigkeit im Mix
+
+Ziel ist ein direktes und musikalisches Spielgefühl.
+
+### Module
+
+-   Amp / Tone (cleaner Grundsound + musikalischer EQ)\
+-   VCA-inspirierter Compressor (schnelle Attack, Punch-Modus, optional
+    Auto-Makeup)\
+-   Octaver, Envelope Filter, Chorus, Phaser\
+-   Master (Tuner, Mono-Maker, Gate)\
+-   Cab-Sektion mit wählbaren Optionen + optionaler Röhren-Sättigung
+
+### Technische Hinweise
+
+-   Komplett offline\
+-   Kein Netzwerkzugriff\
+-   Keine Telemetrie\
+-   Keine Hintergrundprozesse
+
+Die Standalone-Version kann unter macOS nach Mikrofon-/Audiozugriff
+fragen, da sie Live-Input verarbeitet.
+
+------------------------------------------------------------------------
+
+Built with groove by Uwe (Vienna)\
+https://www.uwefelchle.at
+
+Keep the low end grooving 🦌
