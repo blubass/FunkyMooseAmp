@@ -139,40 +139,6 @@ if (FUNKY_RELEASE)
     endif()
 endif()
 
-# ---- Ad-hoc Code Signing (macOS, post-build) ----
-# Uses "-" as identity = ad-hoc signing (no Apple Developer Account needed).
-# The plugin runs locally without Gatekeeper warnings once the user allows it
-# in System Settings > Privacy & Security.
-# To upgrade to real signing later, replace "-" with your Developer ID:
-#   set(FUNKY_SIGN_IDENTITY "Developer ID Application: Your Name (TEAMID)")
-if (APPLE)
-    set(FUNKY_SIGN_IDENTITY "-" CACHE STRING "Code signing identity ('-' = ad-hoc)")
-
-    if (TARGET FUNKY_MOOSE_AMP_VST3_VST3)
-        add_custom_command(TARGET FUNKY_MOOSE_AMP_VST3_VST3 POST_BUILD
-            COMMAND codesign --force --deep --sign "${FUNKY_SIGN_IDENTITY}"
-                    "$<TARGET_BUNDLE_DIR:FUNKY_MOOSE_AMP_VST3_VST3>"
-            COMMENT "Ad-hoc signing VST3..."
-        )
-    endif()
-
-    if (TARGET FUNKY_MOOSE_AMP_VST3_AU)
-        add_custom_command(TARGET FUNKY_MOOSE_AMP_VST3_AU POST_BUILD
-            COMMAND codesign --force --deep --sign "${FUNKY_SIGN_IDENTITY}"
-                    "$<TARGET_BUNDLE_DIR:FUNKY_MOOSE_AMP_VST3_AU>"
-            COMMENT "Ad-hoc signing AU..."
-        )
-    endif()
-
-    if (TARGET FUNKY_MOOSE_AMP_VST3_Standalone)
-        add_custom_command(TARGET FUNKY_MOOSE_AMP_VST3_Standalone POST_BUILD
-            COMMAND codesign --force --deep --sign "${FUNKY_SIGN_IDENTITY}"
-                    "$<TARGET_BUNDLE_DIR:FUNKY_MOOSE_AMP_VST3_Standalone>"
-            COMMENT "Ad-hoc signing Standalone..."
-        )
-    endif()
-endif()
-
 # ---- System-wide Plugin Install (macOS) ----
 # Usage: sudo cmake --install build
 # VST3 -> /Library/Audio/Plug-Ins/VST3/
