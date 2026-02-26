@@ -194,10 +194,24 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     for (int ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
       buffer.clear(ch, 0, buffer.getNumSamples());
 
-  // Mono -> Stereo
-  if (totalNumInputChannels == 1 && totalNumOutputChannels >= 2 &&
-      buffer.getNumChannels() >= 2)
+  // Mono -> Stereo (e.g. in DAWs with 1-In/2-Out configuration)
+  if (totalNumInputChannels == 1 && buffer.getNumChannels() >= 2) {
     buffer.copyFrom(1, 0, buffer, 0, 0, buffer.getNumSamples());
+  }
+  // Standalone: Audio Interfaces always provide stereo (In 1=L, In 2=R).
+  // A bass is mono. To prevent it only playing on the left ear, we sum L+R.
+  else if (wrapperType == juce::AudioProcessor::wrapperType_Standalone &&
+           buffer.getNumChannels() >= 2) {
+    auto *L = buffer.getWritePointer(0);
+    auto *R = buffer.getWritePointer(1);
+    for (int i = 0; i < buffer.getNumSamples(); ++i) {
+      float monoSum =
+          L[i] +
+          R[i]; // If Bass is only on L, R is 0. Sum gives perfect unity center.
+      L[i] = monoSum;
+      R[i] = monoSum;
+    }
+  }
 
   // Tuner Tap (Pre-Gate/Amp)
   if (tunerOn) {
