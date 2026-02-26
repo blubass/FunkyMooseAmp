@@ -1040,7 +1040,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     if (hasFlowNum) {
       header.removeFromLeft(30.0f); // Reserve space for dynamic badge
     }
-    drawLabel(g, header, t, 15.2f, juce::Justification::left);
+    drawLabel(g, header, t, 17.0f, juce::Justification::left);
   };
 
   titleAt(L.meter, "INPUT METER", true);
@@ -1051,7 +1051,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   for (int i = 0; i < 4; ++i) {
     auto rr = L.fxSlots[(size_t)i].reduced(18.0f, 5.0f).removeFromTop(24.0f);
     rr.removeFromLeft(30.0f); // Reserve space
-    drawLabel(g, rr, L.fxNames[(size_t)i], 13.8f, juce::Justification::left);
+    drawLabel(g, rr, L.fxNames[(size_t)i], 15.0f, juce::Justification::left);
   }
 
   titleAt(L.master, "MASTER OUT / CAB", true);
@@ -1062,11 +1062,11 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
             L.elchArea.reduced(14.0f, 5.0f)
                 .removeFromTop(26.0f)
                 .translated(75.0f, 12.0f),
-            "ELCH / VISUAL / RMS", 15.2f, juce::Justification::left);
+            "ELCH / VISUAL / RMS", 17.0f, juce::Justification::left);
 
   // Knob labels
   auto labelUnder = [&](juce::Component &c, const juce::String &t,
-                        float size = 14.0f,
+                        float size = 16.5f,
                         juce::Colour col = juce::Colour(0xffe8e8e8)) {
     auto b = c.getBounds().toFloat();
     g.setColour(col);
@@ -1110,11 +1110,11 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   }
 
   // COMP
-  labelUnder(compInKnob, "INPUT", 13.0f);
-  labelUnder(compThreshKnob, "THRESH", 13.0f);
-  labelUnder(compMakeKnob, "MAKEUP", 13.0f);
-  labelUnder(compAtkKnob, "ATTACK", 13.0f);
-  labelUnder(compRelKnob, "RELEASE", 13.0f);
+  labelUnder(compInKnob, "INPUT", 15.0f);
+  labelUnder(compThreshKnob, "THRESH", 15.0f);
+  labelUnder(compMakeKnob, "MAKEUP", 15.0f);
+  labelUnder(compAtkKnob, "ATTACK", 15.0f);
+  labelUnder(compRelKnob, "RELEASE", 15.0f);
 
   g.setColour(juce::Colour(0xffe8e8e8));
   {
@@ -1203,26 +1203,26 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
 
   // FX parameter labels
   g.setColour(sub);
-  labelUnder(oct1Knob, "OCT 1", 12.0f, sub);
-  labelUnder(oct2Knob, "OCT 2", 12.0f, sub);
-  labelUnder(octMixKnob, "MIX", 12.0f, sub);
+  labelUnder(oct1Knob, "OCT 1", 15.0f, sub);
+  labelUnder(oct2Knob, "OCT 2", 15.0f, sub);
+  labelUnder(octMixKnob, "MIX", 15.0f, sub);
 
   labelToggle(octOn);
   labelToggle(envOn);
   labelToggle(phaserOn);
   labelToggle(chorusOn);
 
-  labelUnder(envAtkKnob, "ATTACK", 12.0f, sub);
-  labelUnder(envDecKnob, "DECAY", 12.0f, sub);
-  labelUnder(envRangeKnob, "RANGE", 12.0f, sub);
+  labelUnder(envAtkKnob, "ATTACK", 15.0f, sub);
+  labelUnder(envDecKnob, "DECAY", 15.0f, sub);
+  labelUnder(envRangeKnob, "RANGE", 15.0f, sub);
 
-  labelUnder(phRateKnob, "RATE", 12.0f, sub);
-  labelUnder(phColKnob, "COLOUR", 12.0f, sub);
-  labelUnder(phMixKnob, "MIX", 12.0f, sub);
+  labelUnder(phRateKnob, "RATE", 15.0f, sub);
+  labelUnder(phColKnob, "COLOUR", 15.0f, sub);
+  labelUnder(phMixKnob, "MIX", 15.0f, sub);
 
-  labelUnder(chRateKnob, "RATE", 12.0f, sub);
-  labelUnder(chDepthKnob, "DEPTH", 12.0f, sub);
-  labelUnder(chMixKnob, "MIX", 12.0f, sub);
+  labelUnder(chRateKnob, "RATE", 15.0f, sub);
+  labelUnder(chDepthKnob, "DEPTH", 15.0f, sub);
+  labelUnder(chMixKnob, "MIX", 15.0f, sub);
 
   // MASTER - Overlay
   // If a pre-rendered skin overlay exists, draw it; otherwise nothing.
@@ -1592,7 +1592,7 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
   auto content = L.plate.reduced(M);
 
   // 1. Top Row (Input Meter | Title)
-  const float hTop = std::floor(content.getHeight() * 0.13f);
+  const float hTop = std::floor(content.getHeight() * 0.16f);
   auto topRow = content.removeFromTop(hTop);
   content.removeFromTop(G);
 
@@ -1601,10 +1601,10 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
   L.topBar = topRow;
 
   // 2. Bottom Row (Output Meter | Master Knob) - INCREASED HEIGHT
-  const float wRight =
-      std::floor(content.getWidth() * 0.40f); // Match Elch Width
+  const float wRight = std::floor(
+      content.getWidth() * 0.28f); // Match Elch Width (Reduced from 40% to 32%)
 
-  const float hBottom = std::floor(content.getHeight() * 0.17f);
+  const float hBottom = std::floor(content.getHeight() * 0.16f);
   auto bottomRow = content.removeFromBottom(hBottom);
   content.removeFromBottom(G);
 
@@ -1721,7 +1721,7 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   // Slimmer Input Meter (Centred Vertically)
   auto inRect = L.meter.reduced(16.0f);
   auto inVuBounds =
-      inRect.withSizeKeepingCentre(inRect.getWidth(), 32.0f).toNearestInt();
+      inRect.withSizeKeepingCentre(inRect.getWidth(), 56.0f).toNearestInt();
   inVu.setBounds(inVuBounds);
   tunerOverlay->setBounds(inVuBounds);
 
@@ -1731,7 +1731,7 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   // Slimmer Output Meter (Centred Vertically)
   auto outRect = L.outVuArea.reduced(20.0f); // More margin
   outVu.setBounds(
-      outRect.withSizeKeepingCentre(outRect.getWidth(), 32.0f).toNearestInt());
+      outRect.withSizeKeepingCentre(outRect.getWidth(), 56.0f).toNearestInt());
 
   elch.setBounds(L.elchArea.reduced(16.0f).toNearestInt());
 
@@ -1871,7 +1871,7 @@ void FunkyMooseAudioProcessorEditor::layoutAmp(
 
 void FunkyMooseAudioProcessorEditor::layoutComp(
     const juce::Rectangle<float> &r) {
-  constexpr float kSecondary = 52.0f; // Even smaller (was 56)
+  constexpr float kSecondary = 68.0f; // Even smaller (was 56)
 
   // User requested "2 row layout"
   // Row 1: Input | Threshold | Ratio
@@ -1965,7 +1965,7 @@ void FunkyMooseAudioProcessorEditor::layoutFx(const juce::Rectangle<float> &) {
   constexpr float insetX = 20.0f;
   constexpr float insetY = 14.0f;
 
-  constexpr float k = 58.0f;            // FX knob diameter (smaller to fit)
+  constexpr float k = 76.0f;            // FX knob diameter (smaller to fit)
   constexpr float gap = 24.0f;          // spacing between knobs
   constexpr float labelReserve = 44.0f; // minimal space for labels
 
@@ -1980,7 +1980,7 @@ void FunkyMooseAudioProcessorEditor::layoutFx(const juce::Rectangle<float> &) {
 
     // Place knobs CENTERED vertically in the FX box now that it is huge
     // "mittig" as requested (shifted UP further to account for labels)
-    float y = area.getCentreY() - k / 2.0f - 12.0f;
+    float y = area.getCentreY() - k / 2.0f - 24.0f;
 
     a.setBounds(juce::Rectangle<float>(x, y, k, k).toNearestInt());
     x += k + gap;
