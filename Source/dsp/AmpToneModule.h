@@ -56,25 +56,30 @@ public:
     deHarshDip.prepare(spec);
 
     // Subsonic HPF (protects from DC before saturation)
-    dcBlocker.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(
+    if (dcBlocker.state == nullptr) dcBlocker.state = new juce::dsp::IIR::Coefficients<float>();
+    *dcBlocker.state = * juce::dsp::IIR::Coefficients<float>::makeHighPass(
         spec.sampleRate, 25.0f);
 
     // Pre-Emphasis: HPF 30 Hz
-    preHPF.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(
+    if (preHPF.state == nullptr) preHPF.state = new juce::dsp::IIR::Coefficients<float>();
+    *preHPF.state = * juce::dsp::IIR::Coefficients<float>::makeHighPass(
         spec.sampleRate, 30.0f);
 
     // Pre-Emphasis: Presence Peak (+1.5 dB @ 2 kHz, Q=1.0, broad)
-    prePresence.coefficients =
+    if (prePresence.state == nullptr) prePresence.state = new juce::dsp::IIR::Coefficients<float>();
+    *prePresence.state = *
         juce::dsp::IIR::Coefficients<float>::makePeakFilter(
             spec.sampleRate, 2000.0f, 0.8f,
             juce::Decibels::decibelsToGain(1.5f));
 
     // De-Emphasis: LPF 14 kHz (smooth, no digital artifacts)
-    deLPF.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(
+    if (deLPF.state == nullptr) deLPF.state = new juce::dsp::IIR::Coefficients<float>();
+    *deLPF.state = * juce::dsp::IIR::Coefficients<float>::makeLowPass(
         spec.sampleRate, 14000.0f);
 
     // De-Emphasis: Optional Harsh Dip at 3.5 kHz (-2 dB, wide Q=0.7)
-    deHarshDip.coefficients =
+    if (deHarshDip.state == nullptr) deHarshDip.state = new juce::dsp::IIR::Coefficients<float>();
+    *deHarshDip.state = *
         juce::dsp::IIR::Coefficients<float>::makePeakFilter(
             spec.sampleRate, 3500.0f, 0.7f,
             juce::Decibels::decibelsToGain(-2.0f));
@@ -204,25 +209,30 @@ public:
       float curTreble = trebleDbSm.getCurrentValue();
 
       // Direct dB values passed from processor
-      mid.coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+      if (mid.state == nullptr) mid.state = new juce::dsp::IIR::Coefficients<float>();
+      *mid.state = * juce::dsp::IIR::Coefficients<float>::makePeakFilter(
           sr, 750.0, 0.9, juce::Decibels::decibelsToGain(curMid));
 
       if (slapOn) {
         // MID SCOOP: -12dB @ 600Hz, Q=1.0
-        slap.coefficients = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        if (slap.state == nullptr) slap.state = new juce::dsp::IIR::Coefficients<float>();
+        *slap.state = * juce::dsp::IIR::Coefficients<float>::makePeakFilter(
             sr, 600.0f, 1.0f, juce::Decibels::decibelsToGain(-12.0f));
       } else {
-        slap.coefficients =
+        if (slap.state == nullptr) slap.state = new juce::dsp::IIR::Coefficients<float>();
+        *slap.state = *
             juce::dsp::IIR::Coefficients<float>::makeAllPass(sr, 1000.0f);
       }
 
       const float finalBassDb = slapOn ? curBass + 6.0f : curBass;
       const float finalTrebleDb = slapOn ? curTreble + 6.0f : curTreble;
 
-      bass.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowShelf(
+      if (bass.state == nullptr) bass.state = new juce::dsp::IIR::Coefficients<float>();
+      *bass.state = * juce::dsp::IIR::Coefficients<float>::makeLowShelf(
           sr, 120.0, 0.7, juce::Decibels::decibelsToGain(finalBassDb));
 
-      treble.coefficients = juce::dsp::IIR::Coefficients<float>::makeHighShelf(
+      if (treble.state == nullptr) treble.state = new juce::dsp::IIR::Coefficients<float>();
+      *treble.state = * juce::dsp::IIR::Coefficients<float>::makeHighShelf(
           sr, 3200.0, 0.7, juce::Decibels::decibelsToGain(finalTrebleDb));
 
       bass.process(ctx);
@@ -262,17 +272,18 @@ public:
   }
 
 private:
-  juce::dsp::IIR::Filter<float> bass, mid, treble, slap;
-  juce::dsp::IIR::Filter<float> dcBlocker;
+  using IIRFilter = juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>>;
+  IIRFilter bass, mid, treble, slap;
+  IIRFilter dcBlocker;
   std::atomic<float> visualLevel{0.0f};
 
   // Pre-Saturation Filters (HPF + Presence Boost)
-  juce::dsp::IIR::Filter<float> preHPF;
-  juce::dsp::IIR::Filter<float> prePresence;
+  IIRFilter preHPF;
+  IIRFilter prePresence;
 
   // De-Saturation Filters (LPF + optional Harsh Dip)
-  juce::dsp::IIR::Filter<float> deLPF;
-  juce::dsp::IIR::Filter<float> deHarshDip;
+  IIRFilter deLPF;
+  IIRFilter deHarshDip;
 
   // Sag Module
   SagModule sagModule;
