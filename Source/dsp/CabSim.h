@@ -9,7 +9,23 @@
 //==============================================================================
 class CabSim {
 public:
-  enum Type { Bypass = 0, Cab4x10 = 1, Cab1x15 = 2 };
+  enum Type { Bypass = 0, Cab4x10 = 1, Cab1x15 = 2, CustomIR = 3 };
+
+  juce::dsp::Convolution convolver;
+  juce::dsp::DryWetMixer<float> mixer;
+  juce::String customIrPath;
+  bool isCustomIrLoaded = false;
+
+  void loadCustomIr(const juce::String &path) {
+    juce::File file(path);
+    if (file.existsAsFile()) {
+      customIrPath = path;
+      convolver.loadImpulseResponse(file, juce::dsp::Convolution::Stereo::yes,
+                                    juce::dsp::Convolution::Trim::yes, 0,
+                                    juce::dsp::Convolution::Normalise::yes);
+      isCustomIrLoaded = true;
+    }
+  }
 
   void prepare(const juce::dsp::ProcessSpec &spec) {
     sampleRate = spec.sampleRate;
@@ -23,6 +39,12 @@ public:
     mid.prepare(spec);
     mid.reset();
 
+    convolver.prepare(spec);
+
+    mixer.prepare(spec);
+    mixer.setMixingRule(juce::dsp::DryWetMixingRule::linear);
+    mixer.setWetLatency(convolver.getLatency());
+
     lastType = -1; // Force update
   }
 
@@ -30,21 +52,35 @@ public:
     hp.reset();
     lp.reset();
     mid.reset();
+    mid.reset();
+    convolver.reset();
+    mixer.reset();
   }
 
   void setCabType(int t) noexcept { type = t; }
+  void setMix(float m) noexcept { mixer.setWetMixProportion(m); }
 
   void process(const juce::dsp::ProcessContextReplacing<float> &ctx) {
-    if (type <= Bypass || type > Cab1x15)
+    if (type <= Bypass || type > CustomIR)
       return;
+
+    mixer.setWetLatency(convolver.getLatency());
+    mixer.pushDrySamples(ctx.getInputBlock());
 
     juce::ScopedNoDenormals noDenormals;
 
-    updateFilters(type);
+    if (type == CustomIR) {
+      if (isCustomIrLoaded) {
+        convolver.process(ctx);
+      }
+    } else {
+      updateFilters(type);
+      hp.process(ctx);
+      mid.process(ctx);
+      lp.process(ctx);
+    }
 
-    hp.process(ctx);
-    mid.process(ctx);
-    lp.process(ctx);
+    mixer.mixWetSamples(ctx.getOutputBlock());
   }
 
 private:

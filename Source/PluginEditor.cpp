@@ -107,24 +107,30 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   // Cab Button Logic
   cabButton.setClickingTogglesState(false);
   cabButton.onClick = [this] {
-    auto *p = processor.apvts.getParameter("cabType");
-    auto *raw = processor.apvts.getRawParameterValue("cabType");
-    if (p && raw) {
-      // Robust cycling using Raw Index (0, 1, 2)
-      int currentIdx = (int)std::round(raw->load());
-      int nextIdx = (currentIdx + 1) % 3;
-      // Convert to Normalized (0.0, 0.5, 1.0) for Choice(3)
-      float nextNorm = (float)nextIdx / 2.0f;
+    juce::PopupMenu m;
+    m.addItem(1, "OFF");
+    m.addItem(2, "4x10");
+    m.addItem(3, "1x15");
+    m.addSeparator();
+    m.addItem(4, "User IR...");
 
-      p->beginChangeGesture();
-      p->setValueNotifyingHost(nextNorm);
-      p->endChangeGesture();
+    m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&cabButton),
+                    [this](int result) {
+                      if (result == 0)
+                        return;
 
-      // Immediate visual update
-      juce::String txt =
-          (nextIdx == 0) ? "OFF" : ((nextIdx == 1) ? "4x10" : "1x15");
-      cabButton.setButtonText(txt);
-    }
+                      if (result == 4) {
+                        openIrChooser();
+                      } else {
+                        int targetIdx = result - 1;
+                        float val = (float)targetIdx /
+                                    3.0f; // 4 choices total -> denon is 3
+                        auto *p = processor.apvts.getParameter("cabType");
+                        p->beginChangeGesture();
+                        p->setValueNotifyingHost(val);
+                        p->endChangeGesture();
+                      }
+                    });
   };
   content.addAndMakeVisible(cabButton);
 
@@ -175,16 +181,18 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   toggleTooltips.setToggleState(true, juce::dontSendNotification);
   toggleTooltips.onClick = [this] {
     const bool show = toggleTooltips.getToggleState();
-    for (auto *k :
-         {&gainKnob,    &bassKnob,    &midKnob,        &trebleKnob,
-          &volumeKnob,  &compInKnob,  &compThreshKnob, &compMakeKnob,
-          &compAtkKnob, &compRelKnob, &oct1Knob,       &oct2Knob,
-          &octMixKnob,  &envAtkKnob,  &envDecKnob,     &envRangeKnob,
-          &phRateKnob,  &phColKnob,   &phMixKnob,      &chRateKnob,
-          &chDepthKnob, &chMixKnob,   &outKnob,        &monoMakerKnob}) {
+    for (auto *k : {&gainKnob,    &bassKnob,    &midKnob,        &trebleKnob,
+                    &volumeKnob,  &compInKnob,  &compThreshKnob, &compMakeKnob,
+                    &compAtkKnob, &compRelKnob, &oct1Knob,       &oct2Knob,
+                    &octMixKnob,  &envAtkKnob,  &envDecKnob,     &envRangeKnob,
+                    &phRateKnob,  &phColKnob,   &phMixKnob,      &chRateKnob,
+                    &chDepthKnob, &chMixKnob,   &outKnob,        &monoMakerKnob,
+                    &irMixKnob}) {
       k->setPopupDisplayEnabled(show, show, this);
     }
   };
+
+  content.addAndMakeVisible(irMixKnob);
 
   autoGainToggle.setButtonText("");
   autoGainToggle.setName("autoGain");
@@ -407,15 +415,16 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   autoGainAtt = std::make_unique<BA>(ts, "autoGain", autoGainToggle);
   monoMakerOnAtt = std::make_unique<BA>(ts, "monoMakerOn", monoMakerToggle);
   fxParallelAtt = std::make_unique<BA>(ts, "fxParallel", fxParallelToggle);
+  irMixAtt = std::make_unique<SA>(ts, "irMix", irMixKnob);
 
   // Force 3 decimal places for popups (overriding attachment defaults)
-  for (auto *k : {&gainKnob,     &bassKnob,    &midKnob,        &trebleKnob,
-                  &volumeKnob,   &compInKnob,  &compThreshKnob, &compMakeKnob,
-                  &compAtkKnob,  &compRelKnob, &oct1Knob,       &oct2Knob,
-                  &octMixKnob,   &envAtkKnob,  &envDecKnob,     &envRangeKnob,
-                  &phRateKnob,   &phColKnob,   &phMixKnob,      &chRateKnob,
-                  &chDepthKnob,  &chMixKnob,   &outKnob,        &mixKnob,
-                  &monoMakerKnob}) {
+  for (auto *k : {&gainKnob,      &bassKnob,    &midKnob,        &trebleKnob,
+                  &volumeKnob,    &compInKnob,  &compThreshKnob, &compMakeKnob,
+                  &compAtkKnob,   &compRelKnob, &oct1Knob,       &oct2Knob,
+                  &octMixKnob,    &envAtkKnob,  &envDecKnob,     &envRangeKnob,
+                  &phRateKnob,    &phColKnob,   &phMixKnob,      &chRateKnob,
+                  &chDepthKnob,   &chMixKnob,   &outKnob,        &mixKnob,
+                  &monoMakerKnob, &irMixKnob}) {
     k->textFromValueFunction = [](double value) {
       return juce::String(value, 2);
     };
@@ -831,7 +840,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     float aoBase =
         (depthBias > 0.0f) ? 0.65f : ((depthBias < 0.0f) ? 0.15f : 0.45f);
     g.setColour(juce::Colours::black.withAlpha(aoBase));
-    for (float i = 1.0f; i <= 8.0f; i += 2.0f) {
+    for (int i = 1; i <= 8; i += 2) {
       float ext = (depthBias > 0.0f) ? (i * 0.6f) : (i * 0.4f);
       g.drawRoundedRectangle(r.expanded(ext).translated(i, i), curRadius, 2.5f);
     }
@@ -1054,7 +1063,16 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     drawLabel(g, rr, L.fxNames[(size_t)i], 15.0f, juce::Justification::left);
   }
 
-  titleAt(L.master, "MASTER OUT / CAB", true);
+  titleAt(L.master, "MASTER OUT", true);
+  // Add "/ CAB" in a small font right below "MASTER OUT" to stop it from
+  // invading the knob space
+  g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.6f));
+  drawLabel(g,
+            L.master.reduced(14.0f, 5.0f)
+                .removeFromTop(40.0f)
+                .withTrimmedTop(22.0f)
+                .translated(30.0f, 0.0f),
+            "/ CAB", 12.0f, juce::Justification::left);
   titleAt(L.outVuArea, "OUTPUT METER");
 
   // ELCH Title
@@ -1140,21 +1158,20 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
     drawLabel(
         g,
-        {b.getX() - 12.0f, b.getBottom() + 2.0f, b.getWidth() + 24.0f, 22.0f},
-        "DRY/WET", 9.5f);
+        {b.getX() - 12.0f, b.getBottom() + 10.0f, b.getWidth() + 24.0f, 22.0f},
+        "DRY/WET", 15.0f);
   }
 
-  // MONO MAKER label
   // MONO MAKER label (positioned below the knob like DRY/WET)
   {
     auto bK = monoMakerKnob.getBounds().toFloat();
     g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
 
-    // Positioned below the knob
+    // MONO MAKER label perfectly centered below the knob like DRY/WET
     drawLabel(g,
-              {bK.getX() - 15.0f, bK.getBottom() + 10.0f, bK.getWidth() + 30.0f,
-               16.0f},
-              "MONO MAKER", 11.0f, juce::Justification::centredTop);
+              {bK.getX() - 20.0f, bK.getBottom() + 10.0f, bK.getWidth() + 40.0f,
+               22.0f},
+              "MONO MAKER", 14.5f);
   }
 
   // Labels for sub-toggles (Modern/Parallel/Auto)
@@ -1174,13 +1191,21 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
               txt, 11.0f, juce::Justification::centredBottom);
   };
 
+  // POSITIONED ABOVE for Master area (to clear screws/corner elements)
+  auto labelSubMaster = [&](juce::Slider &s, const juce::String &txt) {
+    auto b = s.getBounds().toFloat();
+    g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
+    drawLabel(g,
+              {b.getX() - 15.0f, b.getY() - 15.0f, b.getWidth() + 30.0f, 16.0f},
+              txt, 11.0f, juce::Justification::centredBottom);
+  };
+
   labelSubToggle(octModernToggle, "MODERN");
   labelSubToggle(fxParallelToggle, "PARALLEL");
   labelSubToggleMaster(ampAutoGainToggle, "AUTO GAIN");
   labelSubToggleMaster(autoGateToggle, "AUTO GATE");
-  labelSubToggleMaster(compAutoMakeupToggle, "AUTO GAIN");
+  labelToggle(monoMakerToggle);
   labelSubToggleMaster(autoGainToggle, "AUTO GAIN");
-  labelSubToggleMaster(monoMakerToggle, "ON/OFF");
 
   // --- CAB Button Recessed Frame (Window Style) ---
   {
@@ -1197,8 +1222,18 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.drawRoundedRectangle(b, 3.0f, 1.0f);
 
     // Cabinet Label above the slot
-    drawLabel(g, {b.getX(), b.getY() - 18.0f, b.getWidth(), 14.0f}, "CABINET",
-              10.0f);
+    drawLabel(g, {b.getX(), b.getY() - 24.0f, b.getWidth(), 18.0f}, "CABINET",
+              15.0f);
+  }
+
+  // IR MIX Label
+  {
+    auto b = irMixKnob.getBounds().toFloat();
+    g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
+    drawLabel(g,
+              {b.getX() - 10.0f, cabButton.getBounds().toFloat().getY() - 24.0f,
+               b.getWidth() + 20.0f, 18.0f},
+              "IR MIX", 15.0f);
   }
 
   // FX parameter labels
@@ -1608,10 +1643,11 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
   auto bottomRow = content.removeFromBottom(hBottom);
   content.removeFromBottom(G);
 
-  // Align Master with Elch (Right Column)
-  L.master = bottomRow.removeFromRight(wRight);
-  bottomRow.removeFromRight(G);
-  L.outVuArea = bottomRow; // Rest is VU
+  // Bottom row split identically to Top row to match Meter sizes
+  L.outVuArea =
+      bottomRow.removeFromLeft(std::floor(bottomRow.getWidth() * 0.35f));
+  bottomRow.removeFromLeft(G);
+  L.master = bottomRow; // Rest is Master section
 
   // 3. Center Row (Left: Controls, Right: Elch)
   // Right Col width ~40%
@@ -1729,7 +1765,7 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   tunerToggle.setBounds(L.meter.getRight() - 70, L.meter.getY() + 10, 60, 20);
 
   // Slimmer Output Meter (Centred Vertically)
-  auto outRect = L.outVuArea.reduced(20.0f); // More margin
+  auto outRect = L.outVuArea.reduced(16.0f); // Match Input Meter margin
   outVu.setBounds(
       outRect.withSizeKeepingCentre(outRect.getWidth(), 56.0f).toNearestInt());
 
@@ -1871,7 +1907,7 @@ void FunkyMooseAudioProcessorEditor::layoutAmp(
 
 void FunkyMooseAudioProcessorEditor::layoutComp(
     const juce::Rectangle<float> &r) {
-  constexpr float kSecondary = 68.0f; // Even smaller (was 56)
+  constexpr float kSecondary = 56.0f; // Made smaller to fit the labels nicely
 
   // User requested "2 row layout"
   // Row 1: Input | Threshold | Ratio
@@ -1892,15 +1928,15 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
       return;
 
     float slotX = area.getX() + col * wSlot;
-    // Massive vertical separation to reveal labels
-    float spacingY = 44.0f;
     float slotY = area.getY() + row * rowH;
 
-    // Shift Row 0 up and Row 1 down
+    // Shift Row 0 up to make room for its own labels under it
+    // Shift Row 1 down slightly, but not too far to avoid clipping the bottom
+    // frame
     if (row == 0)
-      slotY -= spacingY / 2.0f;
+      slotY -= 8.0f;
     if (row == 1)
-      slotY += spacingY / 2.0f;
+      slotY += 16.0f;
 
     // Center in slot
     float cx = slotX + wSlot * 0.5f;
@@ -1908,7 +1944,7 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
 
     // For combo box (Ratio)
     if (&c == &ratioBox) {
-      c.setBounds((int)(cx - 48.0f), (int)(cy - 12.0f), 96, 24);
+      c.setBounds((int)(cx - 48.0f), (int)(cy - 26.0f), 96, 24);
       return;
     }
 
@@ -1929,14 +1965,12 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
   {
     float slotX = area.getX() + 2 * wSlot;
     // Apply same row 0 shift
-    float spacingY = 44.0f;
-    float slotY = area.getY() + 0 * rowH - spacingY / 2.0f;
+    float slotY = area.getY() + 0 * rowH - 8.0f;
 
     float cx = slotX + wSlot * 0.5f;
     float cy = slotY + rowH * 0.5f;
-    // Position Punch button slightly below the Ratio box center (Match
-    // ON/OFF switch height 28)
-    punchButton.setBounds((int)(cx - 48.0f), (int)(cy + 18.0f), 96, 28);
+    // Position Punch button lower, below the Ratio box
+    punchButton.setBounds((int)(cx - 48.0f), (int)(cy + 8.0f), 96, 28);
   }
 
   // Row 2
@@ -1979,8 +2013,9 @@ void FunkyMooseAudioProcessorEditor::layoutFx(const juce::Rectangle<float> &) {
     float x = area.getCentreX() - totalW / 2.0f;
 
     // Place knobs CENTERED vertically in the FX box now that it is huge
-    // "mittig" as requested (shifted UP further to account for labels)
-    float y = area.getCentreY() - k / 2.0f - 24.0f;
+    // Shifted UP further to account for labels so they don't clip the bottom
+    // frame
+    float y = area.getCentreY() - k / 2.0f - 30.0f;
 
     a.setBounds(juce::Rectangle<float>(x, y, k, k).toNearestInt());
     x += k + gap;
@@ -1998,31 +2033,37 @@ void FunkyMooseAudioProcessorEditor::layoutFx(const juce::Rectangle<float> &) {
 void FunkyMooseAudioProcessorEditor::layoutMaster(
     const juce::Rectangle<float> &r) {
   auto c = r.getCentre();
-  c.y -= 19.0f; // Minimal tiefer (war -22)
+  c.y -= 28.0f; // Shift entire master section UP to fit bottom labels
 
-  // Master Knob (Big)
+  // Master Knob (Big) - Moved back up slightly
   outKnob.setBounds(
-      juce::Rectangle<float>(c.x - 45.0f, c.y - 55.0f, 110.0f, 110.0f)
+      juce::Rectangle<float>(c.x - 45.0f, c.y - 48.0f, 110.0f, 110.0f)
           .toNearestInt());
 
   // Mix (Left of Master)
   mixKnob.setBounds(
-      juce::Rectangle<float>(c.x - 135.0f, c.y - 25.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x - 220.0f, c.y - 20.0f, 50.0f, 50.0f)
           .toNearestInt());
 
-  // Mono Maker (Further Left) - Toggle positioned BESIDE the knob
-  float mmX = c.x - 225.0f;
-  monoMakerKnob.setBounds(
-      juce::Rectangle<float>(mmX, c.y - 24.0f, 48.0f, 48.0f).toNearestInt());
+  // Mono Maker (Further Left)
+  float mmX = c.x - 390.0f;
+  monoMakerKnob.setBounds(juce::Rectangle<float>(mmX, c.y - 20.0f, 50.0f, 50.0f)
+                              .toNearestInt()); // Aligned with Dry/Wet
 
-  // Toggle centered vertically with the knob, placed to the LEFT
+  // Toggle centered vertically precisely BETWEEN Mono Maker and Dry/Wet
+  // 390 + 220 / 2 = 305. 305 - 12 (half toggle) = 293
   monoMakerToggle.setBounds(
-      juce::Rectangle<float>(mmX - 34.0f, c.y - 12.0f, 24.0f, 24.0f)
+      juce::Rectangle<float>(c.x - 293.0f, c.y - 7.0f, 24.0f, 24.0f)
           .toNearestInt());
 
-  // Cab (Right of Master) - More distance now
+  // IR Mix (Left of Cabinets)
+  irMixKnob.setBounds(
+      juce::Rectangle<float>(c.x + 140.0f, c.y - 24.0f, 48.0f, 48.0f)
+          .toNearestInt());
+
+  // Cab (Right of Master)
   cabButton.setBounds(
-      juce::Rectangle<float>(c.x + 105.0f, c.y - 13.0f, 86.0f, 26.0f)
+      juce::Rectangle<float>(c.x + 230.0f, c.y - 13.0f, 86.0f, 26.0f)
           .toNearestInt());
 }
 
@@ -2039,6 +2080,36 @@ void FunkyMooseAudioProcessorEditor::layoutElchArea(
 
   outVu.setBounds(vuR.reduced(6.0f).toNearestInt());
   elch.setBounds(elR.toNearestInt());
+}
+
+void FunkyMooseAudioProcessorEditor::openIrChooser() {
+  auto startDir =
+      lastIrDirectory.exists()
+          ? lastIrDirectory
+          : juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+
+  irChooser = std::make_unique<juce::FileChooser>(
+      "Select a Custom IR (WAV/AIF)", startDir, "*.wav;*.aiff;*.aif");
+
+  auto folderChooserFlags = juce::FileBrowserComponent::openMode |
+                            juce::FileBrowserComponent::canSelectFiles;
+
+  irChooser->launchAsync(
+      folderChooserFlags, [this](const juce::FileChooser &fc) {
+        auto file = fc.getResult();
+        if (file.existsAsFile()) {
+          lastIrDirectory = file.getParentDirectory();
+          // Update the DSP
+          processor.dspChain.getAmpCabBlock().getCab().loadCustomIr(
+              file.getFullPathName());
+
+          // Set APVTS parameter to 3 (CUSTOM IR) -> Normalized 1.0f
+          auto *p = processor.apvts.getParameter("cabType");
+          p->beginChangeGesture();
+          p->setValueNotifyingHost(1.0f);
+          p->endChangeGesture();
+        }
+      });
 }
 
 void FunkyMooseAudioProcessorEditor::timerCallback() {
@@ -2068,8 +2139,14 @@ void FunkyMooseAudioProcessorEditor::timerCallback() {
   // Sync Cab Button Text
   if (auto *raw = processor.apvts.getRawParameterValue("cabType")) {
     int idx = (int)std::round(raw->load());
-    juce::String txt =
-        (idx == 0) ? "CAB: OFF" : ((idx == 1) ? "CAB: 4x10" : "CAB: 1x15");
+    juce::String txt = "CAB: OFF";
+    if (idx == 1)
+      txt = "CAB: 4x10";
+    else if (idx == 2)
+      txt = "CAB: 1x15";
+    else if (idx == 3)
+      txt = "CAB: USER IR";
+
     if (cabButton.getButtonText() != txt)
       cabButton.setButtonText(txt);
   }

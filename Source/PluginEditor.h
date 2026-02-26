@@ -214,6 +214,8 @@ private:
   void layoutMaster(const juce::Rectangle<float> &r);
   void layoutElchArea(const juce::Rectangle<float> &r);
 
+  void openIrChooser();
+
   void timerCallback() override;
 
   // Typography helpers (crisp)
@@ -316,7 +318,9 @@ private:
                     juce::Slider::NoTextBox};
   HoverKnob monoMakerKnob{juce::Slider::RotaryHorizontalVerticalDrag,
                           juce::Slider::NoTextBox}; // New
-  juce::ToggleButton autoGainToggle{"AUTO"};        // New
+  HoverKnob irMixKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                      juce::Slider::NoTextBox}; // New
+  juce::ToggleButton autoGainToggle{"AUTO"};    // New
   juce::ToggleButton monoMakerToggle;
   juce::TextButton cabButton{"OFF"};
 
@@ -324,6 +328,9 @@ private:
   std::unique_ptr<TunerComponent> tunerOverlay;
 
   ContentCanvas content{*this};
+
+  std::unique_ptr<juce::FileChooser> irChooser;
+  juce::File lastIrDirectory;
 
   // Attachments
   using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -352,7 +359,7 @@ private:
   std::unique_ptr<ButtonAttachment> chOnAtt, fxParallelAtt; // Added Parallel
   std::unique_ptr<SliderAttachment> chRateAtt, chDepthAtt, chMixAtt;
 
-  std::unique_ptr<SliderAttachment> outAtt, mixAtt, monoMakerAtt;
+  std::unique_ptr<SliderAttachment> outAtt, mixAtt, monoMakerAtt, irMixAtt;
   std::unique_ptr<ButtonAttachment> autoGainAtt, monoMakerOnAtt, masterOnAtt,
       autoGateAtt;
   std::unique_ptr<ButtonAttachment> ampAutoGainAtt, compAutoMakeupAtt,

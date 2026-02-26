@@ -109,8 +109,9 @@ public:
       tunerMuteSmoothed;
   std::atomic<bool> tunerIsOn{false};
 
-private:
   MooseDSPChain dspChain;
+
+private:
   juce::AudioBuffer<float> dryBuffer;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FunkyMooseAudioProcessor)

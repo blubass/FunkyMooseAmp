@@ -111,7 +111,10 @@ FunkyMooseAudioProcessor::createParams() {
       "masterOut", "Output", juce::NormalisableRange<float>(-60.0f, 6.0f),
       -1.0f));
   p.push_back(std::make_unique<APC>(
-      "cabType", "Cabinet", juce::StringArray{"OFF", "4x10", "1x15"}, 1));
+      "cabType", "Cabinet",
+      juce::StringArray{"OFF", "4x10", "1x15", "CUSTOM IR"}, 1));
+  p.push_back(std::make_unique<APF>(
+      "irMix", "IR Mix", juce::NormalisableRange<float>(0.0f, 100.0f), 100.0f));
   p.push_back(std::make_unique<APF>(
       "masterMix", "Mix", juce::NormalisableRange<float>(0.0f, 100.0f),
       100.0f));
@@ -354,8 +357,9 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // 7. CabSim
   {
-    dspChain.getCabSim().setCabType(
-        (int)apvts.getRawParameterValue("cabType")->load());
+    auto &cab = dspChain.getCabSim();
+    cab.setCabType((int)apvts.getRawParameterValue("cabType")->load());
+    cab.setMix(apvts.getRawParameterValue("irMix")->load() / 100.0f);
   }
 
   // 8. Output Gain + Master Mix
@@ -431,6 +435,7 @@ void FunkyMooseAudioProcessor::getStateInformation(
     juce::MemoryBlock &destData) {
   auto state = apvts.copyState();
   state.setProperty("version", projectVersion, nullptr);
+  state.setProperty("customIrPath", dspChain.getCabSim().customIrPath, nullptr);
   std::unique_ptr<juce::XmlElement> xml(state.createXml());
   copyXmlToBinary(*xml, destData);
 }
@@ -444,8 +449,10 @@ void FunkyMooseAudioProcessor::setStateInformation(const void *data,
       auto vt = juce::ValueTree::fromXml(*xmlState);
       int loadedVersion = vt.getProperty("version", 0);
 
-      // Here you can handle version migration if needed in the future
-      // if (loadedVersion < 1) { ... }
+      juce::String irPath = vt.getProperty("customIrPath", "");
+      if (irPath.isNotEmpty()) {
+        dspChain.getCabSim().loadCustomIr(irPath);
+      }
 
       apvts.replaceState(vt);
     }
