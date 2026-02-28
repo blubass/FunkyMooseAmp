@@ -25,6 +25,10 @@ public:
     envFilter.prepare(spec);
     envFilter.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
 
+    oct1Sm.reset(sampleRate, 0.05);
+    oct2Sm.reset(sampleRate, 0.05);
+    octMixSm.reset(sampleRate, 0.05);
+
     reset();
 
     // Ensure scratch buffers are ready
@@ -84,48 +88,40 @@ public:
           dryScratch[(size_t)i] = inL[i];
       }
 
-      float sOct1 = oct1Sm.getNextValue();
-      float sOct2 = oct2Sm.getNextValue();
-      float sMix = octMixSm.getNextValue();
-
-      // Generate Sub Octave only if gain > 0
-      if (sOct1 > 0.001f)
+      // Generate Sub Octave (Check target value for efficiency gating)
+      if (oct1Sm.getTargetValue() > 0.001f)
         shifter.process(0.5f, nSamp, dryScratch.data(), subScratch.data());
       else
         std::fill(subScratch.begin(), subScratch.begin() + nSamp, 0.0f);
 
-      // Generate Up Octave only if gain > 0
-      if (sOct2 > 0.001f)
+      // Generate Up Octave (Check target value for efficiency gating)
+      if (oct2Sm.getTargetValue() > 0.001f)
         shifterUp.process(2.0f, nSamp, dryScratch.data(), upScratch.data());
       else
         std::fill(upScratch.begin(), upScratch.begin() + nSamp, 0.0f);
 
       for (int i = 0; i < nSamp; ++i) {
-        // Use current smoothed values (already updated above)
-        // Combine octaves. Boost slightly to compensate for potential phase
-        // cancellations and the fact that shifted signals can feel "thinner".
+        float sOct1 = oct1Sm.getNextValue();
+        float sOct2 = oct2Sm.getNextValue();
+        float sMix = octMixSm.getNextValue();
+
         float downVal = subScratch[(size_t)i] * sOct1;
         float upVal = upScratch[(size_t)i] * sOct2;
-        float wetSignal = (downVal + upVal) * 1.2f;
+        float wetSignal = (downVal + upVal);
 
-        // Soft clip to tame peaks but keep it clean
-        if (std::abs(wetSignal) > 0.95f)
-          wetSignal = std::tanh(wetSignal);
-
-        // Mixing logic: Parallel addition with dry attenuation to avoid
-        // clipping, but ensuring it doesn't get quieter. Using a weighted sum
-        // that preserves dry signal presence.
-        float dryWeight =
-            1.0f - (sMix * 0.4f);      // Dry only drops to 60% at max mix
-        float wetWeight = sMix * 1.1f; // Wet is slightly boosted
+        // Mixing logic
+        float dryWeight = 1.0f - (sMix * 0.5f);
+        float wetWeight =
+            sMix * 1.2f; // Slight boost to compensate for thinning
 
         for (int ch = 0; ch < chs; ++ch) {
           float dry = buffer.getSample(ch, i);
           float out = (dry * dryWeight) + (wetSignal * wetWeight);
 
-          // Final safety clip
-          if (std::abs(out) > 0.99f)
-            out = std::tanh(out);
+          // Transparent safety clip
+          if (std::abs(out) > 0.98f)
+            out = (out > 0) ? 0.98f + (out - 0.98f) * 0.1f
+                            : -0.98f + (out + 0.98f) * 0.1f;
 
           buffer.setSample(ch, i, out);
         }

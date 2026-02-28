@@ -1328,6 +1328,14 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
               "+5 dB @ 8k", 9.5f, juce::Justification::centredTop);
   }
 
+  // MASTER & CAB (Add shadow for the large knob to feel less isolated)
+  {
+    auto b = outKnob.getBounds().toFloat().reduced(10.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.25f));
+    g.fillEllipse(b.translated(0, 4.0f)); // Drop shadow
+  }
+  labelUnder(outKnob, "VOLUME", 18.0f);
+
   // COMP
   labelUnder(compInKnob, "INPUT", 15.0f);
   labelUnder(compThreshKnob, "THRESH", 15.0f);
@@ -1808,6 +1816,7 @@ void FunkyMooseAudioProcessorEditor::drawLabel(juce::Graphics &g,
   // Use a simple Font constructor for broader JUCE compatibility
   // Use a simple Font constructor for broader JUCE compatibility
   juce::Font font{juce::FontOptions(size)};
+  font.setHorizontalScale(1.03f); // Subtle tracking for premium feel
   g.setFont(font);
 
   // --- VINTAGE ENGRAVED EFFECT ---
@@ -2187,11 +2196,11 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
         foot.removeFromRight(44.0f).reduced(0, 4.0f).translated(0, -6.0f);
     compAutoMakeupToggle.setBounds(toggleRectBottom.toNearestInt());
 
-    // GR Meter: Vertical on the Left (Stronger Presence)
+    // GR Meter: Vertical on the Left (Maximum Analog Height)
     float grW = 32.0f;
-    float grH = L.comp.getHeight() - 110.0f;
+    float grH = L.comp.getHeight() - 100.0f; // Even longer
     float grX = L.comp.getX() + 14.0f;
-    float grY = L.comp.getY() + 65.0f;
+    float grY = L.comp.getY() + 55.0f; // Pulled higher
     compGr.setBounds((int)grX, (int)grY, (int)grW, (int)grH);
   }
 }
@@ -2307,8 +2316,7 @@ void FunkyMooseAudioProcessorEditor::openIrChooser() {
         if (file.existsAsFile()) {
           lastIrDirectory = file.getParentDirectory();
           // Update the DSP
-          processor.dspChain.getAmpCabBlock().getCab().loadCustomIr(
-              file.getFullPathName());
+          processor.dspChain.getCabSim().loadCustomIr(file.getFullPathName());
 
           // Set APVTS parameter to 3 (CUSTOM IR) -> Normalized 1.0f
           auto *p = processor.apvts.getParameter("cabType");

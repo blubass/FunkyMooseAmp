@@ -55,19 +55,16 @@ private:
       auto r = getLocalBounds().toFloat();
 
       // 1. Meter Housing / Glass (Dark & Recessed)
-      g.setColour(juce::Colour(0xff151515));
+      g.setColour(juce::Colour(0xff121212)); // Deeper Black
       g.fillRoundedRectangle(r, 4.0f);
 
       // Inner shadow for depth
       g.setColour(juce::Colours::black.withAlpha(0.6f));
       g.drawRoundedRectangle(r, 4.0f, 1.5f);
 
-      // Glass reflection
-      juce::ColourGradient glassG(
-          juce::Colours::white.withAlpha(0.08f), r.getX(), r.getY(),
-          juce::Colours::transparentWhite, r.getX(), r.getBottom(), false);
-      g.setGradientFill(glassG);
-      g.fillRoundedRectangle(r, 4.0f);
+      // --- NEW: METALLIC RIM / INNER GLOW ---
+      g.setColour(juce::Colours::white.withAlpha(0.08f));
+      g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 0.5f); // Subtle Rim
 
       // 2. LED Segments
       auto inner = r.reduced(4.0f, 4.0f); // Padding inside glass
@@ -77,7 +74,7 @@ private:
       const float gap = 0.8f;
 
       // Map linear -> Log/VU curve
-      const float vu = std::pow(level, 0.5f); // 0.0 -> 1.0
+      const float vuMapping = std::pow(level, isGR ? 0.4f : 0.5f); // 0.0 -> 1.0
 
       // Colors - "Elch Glow" (Orange -> Cyan)
       const juce::Colour cOrange =
@@ -103,7 +100,7 @@ private:
             active = ((1.0f - pos) <= (1.0f - level));
           } else {
             // Vertical VU: Bottom -> Top
-            active = (pos <= vu);
+            active = (pos <= vuMapping);
           }
         } else {
           if (isGR) {
@@ -112,7 +109,7 @@ private:
             active = ((1.0f - pos) <= (1.0f - level));
           } else {
             // Horizontal VU: Left -> Right
-            active = (pos <= vu);
+            active = (pos <= vuMapping);
           }
         }
 
@@ -142,7 +139,7 @@ private:
         } else {
           // Subtle afterglow for segments just below current level
           // (micro-animation)
-          float distanceFromLevel = vu - pos;
+          float distanceFromLevel = vuMapping - pos;
           if (distanceFromLevel > 0.0f && distanceFromLevel < 0.15f) {
             // Segments just behind the level get a fading glow
             float glowAmount = 1.0f - (distanceFromLevel / 0.15f);
@@ -150,7 +147,7 @@ private:
             g.fillRect(segRect);
           } else {
             // INACTIVE: Dark "Ghost" LED
-            g.setColour(segCol.darker(0.8f).withAlpha(0.2f));
+            g.setColour(segCol.darker(0.8f).withAlpha(0.15f));
             g.fillRect(segRect);
           }
         }
@@ -158,7 +155,7 @@ private:
 
       // Peak Hold Indicator (White segment)
       if (peak > 0.001f) {
-        float peakVu = std::pow(peak, 0.5f);
+        float peakVu = std::pow(peak, isGR ? 0.4f : 0.5f);
         int peakIdx = (int)(peakVu * (numSegments - 1));
         peakIdx = juce::jlimit(0, numSegments - 1, peakIdx);
 
@@ -174,9 +171,16 @@ private:
           float x = inner.getX() + peakIdx * (segW + gap);
           pRect = {x, inner.getY(), segW, inner.getHeight()};
         }
-        g.setColour(juce::Colours::white.withAlpha(0.95f)); // White peak
+        g.setColour(juce::Colours::white.withAlpha(0.85f)); // White peak
         g.fillRect(pRect);
       }
+
+      // 3. Glass reflection (Final Layer)
+      juce::ColourGradient glassG(
+          juce::Colours::white.withAlpha(0.12f), r.getX(), r.getY(),
+          juce::Colours::transparentWhite, r.getX(), r.getBottom(), false);
+      g.setGradientFill(glassG);
+      g.fillRoundedRectangle(r, 4.0f);
     }
 
     float level = 0.0f;

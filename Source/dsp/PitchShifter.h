@@ -13,7 +13,8 @@ public:
       : fft(10) // 2^10 = 1024
   {
     fftFrameSize = 1024;
-    osamp = 2; // Reduced from 4 to 1/2 the CPU load
+    osamp =
+        4; // Increased from 2 for cleaner sound & better octave-up remapping
     stepSize = fftFrameSize / osamp;
     freqPerBin = 0.0;
     expct = 2.0 * juce::MathConstants<double>::pi * (double)stepSize /

@@ -305,7 +305,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     const bool envOn = envOnParam->load() > 0.5f;
 
     const bool anyActive = octOn || envOn;
-    dspChain.setBypassed<1>(!anyActive);
+    dspChain.setBypassedAndReset<2>(!anyActive);
 
     octEnv.setOctaveOn(octOn);
     octEnv.setEnvelopeOn(envOn);
@@ -343,7 +343,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // LowCut
     const bool lcOn = lowCutOnParam->load() > 0.5f;
-    dspChain.setBypassed<2>(!lcOn);
+    dspChain.setBypassed<3>(!lcOn);
 
     // Auto-Gain
     amp.setAutoGain(ampAutoGainParam->load() > 0.5f);
@@ -354,7 +354,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto &comp = dspChain.getCompressor();
     const bool compOn = compOnParam->load() > 0.5f;
 
-    dspChain.setBypassed<5>(!compOn);
+    dspChain.setBypassedAndReset<1>(!compOn);
 
     comp.setCompOn(compOn);
     comp.setThresholdDb(compThreshParam->load());
@@ -376,7 +376,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     const bool chOn = chorusOnParam->load() > 0.5f;
 
     const bool anyModActive = phOn || chOn;
-    dspChain.setBypassed<6>(!anyModActive);
+    dspChain.setBypassedAndReset<7>(!anyModActive);
 
     mod.setPhaserOn(phOn);
     mod.setPhaserRate(phRateParam->load());
@@ -397,7 +397,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     const bool mojoTargetActive =
         (ampOnParam->load() > 0.5f) && (tubeOnParam->load() > 0.5f);
 
-    dspChain.setBypassed<7>(!mojoTargetActive);
+    dspChain.setBypassedAndReset<6>(!mojoTargetActive);
 
     if (mojoTargetActive) {
       float g01 = (ampGainParam->load() + compInputParam->load()) / 24.0f;
