@@ -98,12 +98,6 @@ public:
     sagModule.setSagAmount(0.08f);
     sagModule.setReleaseMs(120.0f);
 
-    // Oversampling 2x (Quality vs CPU balance)
-    oversampler = std::make_unique<juce::dsp::Oversampling<float>>(
-        spec.numChannels, 1,
-        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, true);
-    oversampler->initProcessing(spec.maximumBlockSize);
-
     scratchBuffer.setSize(spec.numChannels, spec.maximumBlockSize);
 
     prepared = true;
@@ -180,8 +174,7 @@ public:
       const int numSamples = (int)block.getNumSamples();
       const int numCh = (int)block.getNumChannels();
 
-      // Ensure scratch buffer is large enough (should be pre-allocated in
-      // prepare)
+      // Ensure scratch buffer is large enough
       if (scratchBuffer.getNumSamples() < numSamples)
         scratchBuffer.setSize(numCh, numSamples, false, false, true);
 
@@ -189,24 +182,23 @@ public:
       for (int ch = 0; ch < numCh; ++ch)
         scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
 
-      // --- MOOSE PREAMP: Transformer Feel with 2x Oversampling ---
+      // --- MOOSE PREAMP: Transformer Feel ---
       float peak = 0.0f;
 
-      // Pre-Saturation Filters (at base rate for efficiency)
+      // Pre-Saturation Filters (at base rate)
       preHPF.process(ctx);
       prePresence.process(ctx);
 
-      // Upsample saturation stage
-      auto oversampledBlock = oversampler->processSamplesUp(block);
-      const int osSamples = (int)oversampledBlock.getNumSamples();
+      // Process saturation (Oversampling is now handled by the outer AmpBlock
+      // at 4x)
+      for (int i = 0; i < numSamples; ++i) {
+        // CALL SMOOTHERS ONCE PER SAMPLE (Fixed stereo sync bug)
+        const float currentGain = inputGainSm.getNextValue();
+        const float currentTubeOn = tubeOnSm.getNextValue();
 
-      for (int ch = 0; ch < numCh; ++ch) {
-        float *osData = oversampledBlock.getChannelPointer(ch);
-        float channelDcFilter = dcFilter[ch];
-
-        for (int i = 0; i < osSamples; ++i) {
-          // Note: Smoothers are called more frequently in OS stage
-          float x = osData[i] * inputGainSm.getNextValue();
+        for (int ch = 0; ch < numCh; ++ch) {
+          float *data = block.getChannelPointer(ch);
+          float x = data[i] * currentGain;
           const float dryPreSat = x;
 
           // Tube Saturation (More aggressive, asymmetric for 'Tube' feel)
@@ -221,26 +213,20 @@ public:
           y += 0.06f * (hb * hb) + 0.04f * (hb * hb * hb);
 
           // DC Removal (1-pole HPF @ 5 Hz)
-          channelDcFilter += (y - channelDcFilter) *
-                             (dcRemovalCoeff * 0.5f); // Half coeff for 2x rate
-          y -= channelDcFilter;
+          dcFilter[ch] += (y - dcFilter[ch]) * dcRemovalCoeff;
+          y -= dcFilter[ch];
 
           // Mix Tube Saturation (Smoothed)
-          const float currentTubeOn = tubeOnSm.getNextValue();
           y = dryPreSat + (y - dryPreSat) * currentTubeOn;
 
           // Saturator compressed output
-          osData[i] = y * (0.85f - (currentTubeOn * 0.05f));
+          data[i] = y * (0.85f - (currentTubeOn * 0.05f));
 
           float absY = std::abs(y);
           if (absY > peak)
             peak = absY;
         }
-        dcFilter[ch] = channelDcFilter;
       }
-
-      // Downsample back to base rate
-      oversampler->processSamplesDown(block);
 
       // Apply Sag
       sagModule.process(ctx);
@@ -260,14 +246,7 @@ public:
       mid.process(ctx);
       treble.process(ctx);
 
-      // Apply Slap filter with sample-accurate crossfade (prevents clicks)
-      // 1. Use the pre-existing scratchBuffer as dry signal (it was captured at
-      // line 190)
-      // However, we need the state *after* tone stack but *before* slap.
-      // So let's capture it HERE into a temporary local if scratch is occupied.
-      // Actually, scratch is fine to reuse if we don't need the PRE-sat dry
-      // anymore.
-      // But let's just use it.
+      // Apply Slap filter with sample-accurate crossfade
       for (int ch = 0; ch < numCh; ++ch)
         scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
 
@@ -294,7 +273,7 @@ public:
         block.multiplyBy(compGain);
       }
 
-      // Final Crossfade for Amp Bypass (Smoothed)
+      // Final Crossfade for Amp Bypass
       const float startMix = ampOnSm.getCurrentValue();
       ampOnSm.skip(numSamples);
       const float endMix = ampOnSm.getCurrentValue();
@@ -401,7 +380,4 @@ private:
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> midDbSm{0.0f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> trebleDbSm{
       0.0f};
-
-  // Oversampling (2x) for high-quality saturation
-  std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
 };

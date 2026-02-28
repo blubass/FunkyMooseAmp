@@ -29,6 +29,10 @@ public:
     oct2Sm.reset(sampleRate, 0.05);
     octMixSm.reset(sampleRate, 0.05);
 
+    preShifterHPF.prepare(spec);
+    preShifterHPF.coefficients =
+        juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 60.0f);
+
     reset();
 
     // Ensure scratch buffers are ready
@@ -45,6 +49,7 @@ public:
     envFilter.reset();
     shifter.reset();
     shifterUp.reset();
+    preShifterHPF.reset();
   }
 
   void setOctaveOn(bool on) noexcept { octOn = on; }
@@ -88,6 +93,11 @@ public:
           dryScratch[(size_t)i] = inL[i];
       }
 
+      // HPF @ 60Hz to stabilize STFT tracking (Rumble removal)
+      for (int i = 0; i < nSamp; ++i)
+        dryScratch[(size_t)i] =
+            preShifterHPF.processSample(dryScratch[(size_t)i]);
+
       // Generate Sub Octave (Check target value for efficiency gating)
       if (oct1Sm.getTargetValue() > 0.001f)
         shifter.process(0.5f, nSamp, dryScratch.data(), subScratch.data());
@@ -112,7 +122,8 @@ public:
         // Mixing logic
         float dryWeight = 1.0f - (sMix * 0.5f);
         float wetWeight =
-            sMix * 1.2f; // Slight boost to compensate for thinning
+            sMix *
+            1.05f; // Reduced from 1.2f to avoid "buzz" and maintain headroom
 
         for (int ch = 0; ch < chs; ++ch) {
           float dry = buffer.getSample(ch, i);
@@ -201,4 +212,7 @@ private:
   // Envelope State
   juce::dsp::StateVariableTPTFilter<float> envFilter;
   float envFollower{0.0f};
+
+  // Pre-Shifter HPF for tracking stability
+  juce::dsp::IIR::Filter<float> preShifterHPF;
 };
