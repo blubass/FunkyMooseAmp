@@ -50,6 +50,8 @@ juce_add_plugin(FUNKY_MOOSE_AMP_VST3
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "Funky Moose Amp needs access to your audio input so it can process live audio."
 
+    ICON_BIG "Source/Assets/FunkyMoose.icns"
+
     COPY_PLUGIN_AFTER_BUILD TRUE
     FORMATS VST3 AU Standalone
 )
@@ -105,19 +107,22 @@ if (TARGET FUNKY_MOOSE_AMP_VST3_VST3)
     target_compile_definitions(FUNKY_MOOSE_AMP_VST3_VST3 PRIVATE JUCE_VST3_CAN_REPLACE_VST2=0)
 endif()
 
-# ---- Standalone: macOS bundle icon ----
+# ---- Standalone: macOS bundle properties ----
 if (APPLE AND TARGET FUNKY_MOOSE_AMP_VST3_Standalone)
     set_target_properties(FUNKY_MOOSE_AMP_VST3_Standalone PROPERTIES
+        MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Funky Moose Amp"
         MACOSX_BUNDLE_GUI_IDENTIFIER "at.uwefelchle.funkymooseamp"
-        MACOSX_BUNDLE_ICON_FILE "FunkyMoose.icns"
     )
 
-    target_sources(FUNKY_MOOSE_AMP_VST3_Standalone PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns
-    )
-    set_source_files_properties(Source/Assets/FunkyMoose.icns PROPERTIES
-        MACOSX_PACKAGE_LOCATION "Resources"
+    # Force the real ELCH icon into the bundle after build
+    # (JUCE/Xcode currently produce an 8-byte dummy Icon.icns)
+    add_custom_command(TARGET FUNKY_MOOSE_AMP_VST3_Standalone POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns"
+        "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_VST3_Standalone>/../Resources/Icon.icns"
+        COMMAND /usr/bin/touch "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_VST3_Standalone>/../.."
+        COMMENT "Enforcing Elch icon over dummy Icon.icns and refreshing bundle..."
     )
 endif()
 
@@ -126,7 +131,7 @@ if (FUNKY_RELEASE)
     if ((CMAKE_CXX_COMPILER_ID MATCHES "Clang") OR (CMAKE_CXX_COMPILER_ID MATCHES "GNU"))
         target_compile_options(FUNKY_MOOSE_AMP_VST3 PRIVATE
             $<$<CONFIG:Release>:-O3>
-            $<$<CONFIG:Release>:-ffast-math>
+            # $<$<CONFIG:Release>:-ffast-math>
         )
 
         # Clean Release log (optional): JUCE 8 deprecation warnings etc.

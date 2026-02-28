@@ -40,6 +40,10 @@ public:
     bassDbSm.reset(spec.sampleRate, 0.05); // 50ms smooth
     midDbSm.reset(spec.sampleRate, 0.05);
     trebleDbSm.reset(spec.sampleRate, 0.05);
+    inputGainSm.reset(spec.sampleRate, 0.05);
+    ampOnSm.reset(spec.sampleRate, 0.02);   // 20ms fade
+    tubeOnSm.reset(spec.sampleRate, 0.02);  // 20ms fade
+    slapMixSm.reset(spec.sampleRate, 0.05); // 50ms fade for slap
 
     bass.prepare(spec);
     mid.prepare(spec);
@@ -56,33 +60,34 @@ public:
     deHarshDip.prepare(spec);
 
     // Subsonic HPF (protects from DC before saturation)
-    if (dcBlocker.state == nullptr) dcBlocker.state = new juce::dsp::IIR::Coefficients<float>();
-    *dcBlocker.state = * juce::dsp::IIR::Coefficients<float>::makeHighPass(
+    if (dcBlocker.state == nullptr)
+      dcBlocker.state = new juce::dsp::IIR::Coefficients<float>();
+    *dcBlocker.state = *juce::dsp::IIR::Coefficients<float>::makeHighPass(
         spec.sampleRate, 25.0f);
 
     // Pre-Emphasis: HPF 30 Hz
-    if (preHPF.state == nullptr) preHPF.state = new juce::dsp::IIR::Coefficients<float>();
-    *preHPF.state = * juce::dsp::IIR::Coefficients<float>::makeHighPass(
+    if (preHPF.state == nullptr)
+      preHPF.state = new juce::dsp::IIR::Coefficients<float>();
+    *preHPF.state = *juce::dsp::IIR::Coefficients<float>::makeHighPass(
         spec.sampleRate, 30.0f);
 
     // Pre-Emphasis: Presence Peak (+1.5 dB @ 2 kHz, Q=1.0, broad)
-    if (prePresence.state == nullptr) prePresence.state = new juce::dsp::IIR::Coefficients<float>();
-    *prePresence.state = *
-        juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-            spec.sampleRate, 2000.0f, 0.8f,
-            juce::Decibels::decibelsToGain(1.5f));
+    if (prePresence.state == nullptr)
+      prePresence.state = new juce::dsp::IIR::Coefficients<float>();
+    *prePresence.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        spec.sampleRate, 2000.0f, 0.8f, juce::Decibels::decibelsToGain(1.5f));
 
     // De-Emphasis: LPF 14 kHz (smooth, no digital artifacts)
-    if (deLPF.state == nullptr) deLPF.state = new juce::dsp::IIR::Coefficients<float>();
-    *deLPF.state = * juce::dsp::IIR::Coefficients<float>::makeLowPass(
+    if (deLPF.state == nullptr)
+      deLPF.state = new juce::dsp::IIR::Coefficients<float>();
+    *deLPF.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass(
         spec.sampleRate, 14000.0f);
 
     // De-Emphasis: Optional Harsh Dip at 3.5 kHz (-2 dB, wide Q=0.7)
-    if (deHarshDip.state == nullptr) deHarshDip.state = new juce::dsp::IIR::Coefficients<float>();
-    *deHarshDip.state = *
-        juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-            spec.sampleRate, 3500.0f, 0.7f,
-            juce::Decibels::decibelsToGain(-2.0f));
+    if (deHarshDip.state == nullptr)
+      deHarshDip.state = new juce::dsp::IIR::Coefficients<float>();
+    *deHarshDip.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        spec.sampleRate, 3500.0f, 0.7f, juce::Decibels::decibelsToGain(-2.0f));
 
     // DC removal filter coefficient (5 Hz, 1-pole)
     dcRemovalCoeff = 1.0f - std::exp(-2.0f * juce::MathConstants<float>::pi *
@@ -93,15 +98,28 @@ public:
     sagModule.setSagAmount(0.08f);
     sagModule.setReleaseMs(120.0f);
 
+    scratchBuffer.setSize(spec.numChannels, spec.maximumBlockSize);
+
     prepared = true;
   }
 
-  void setAmpOn(bool shouldBeOn) noexcept { ampOn = shouldBeOn; }
-  void setTubeOn(bool shouldBeOn) noexcept { tubeOn = shouldBeOn; }
-  void setSlapOn(bool shouldBeOn) noexcept { slapOn = shouldBeOn; }
+  void setAmpOn(bool shouldBeOn) noexcept {
+    ampOnSm.setTargetValue(shouldBeOn ? 1.0f : 0.0f);
+  }
+  bool isAmpOn() const noexcept { return ampOnSm.getTargetValue() > 0.5f; }
+  bool isAmpActuallyActive() const noexcept {
+    return ampOnSm.getCurrentValue() > 0.0001f || ampOnSm.isSmoothing();
+  }
+  void setTubeOn(bool shouldBeOn) noexcept {
+    tubeOnSm.setTargetValue(shouldBeOn ? 1.0f : 0.0f);
+  }
+  void setSlapOn(bool shouldBeOn) noexcept {
+    slapOn = shouldBeOn;
+    slapMixSm.setTargetValue(shouldBeOn ? 1.0f : 0.0f);
+  }
   void setInputGainDb(float db) noexcept {
     inputGainDb = juce::jlimit(-6.0f, 12.0f, db);
-    inputGain = juce::Decibels::decibelsToGain(inputGainDb);
+    inputGainSm.setTargetValue(juce::Decibels::decibelsToGain(inputGainDb));
   }
   void setBassDb(float db) noexcept { bassDbSm.setTargetValue(db); }
   void setMidDb(float db) noexcept { midDbSm.setTargetValue(db); }
@@ -128,6 +146,8 @@ public:
     dcFilter[0] = 0.0f;
     dcFilter[1] = 0.0f;
     sagModule.reset();
+    ampOnSm.setCurrentAndTargetValue(ampOnSm.getTargetValue());
+    tubeOnSm.setCurrentAndTargetValue(tubeOnSm.getTargetValue());
   }
 
   void process(const juce::dsp::ProcessContextReplacing<float> &ctx) {
@@ -136,134 +156,134 @@ public:
 
     juce::ScopedNoDenormals noDenormals;
 
-    // 2. Amp Simulation (Tube Sat + EQ) - Only if Amp On
-    if (ampOn) {
+    const int numSamples = (int)ctx.getOutputBlock().getNumSamples();
+
+    // 1. Advance Smoothed Values for EQ (skip to end of block for efficiency)
+    bassDbSm.skip(numSamples);
+    midDbSm.skip(numSamples);
+    trebleDbSm.skip(numSamples);
+    slapMixSm.skip(numSamples);
+
+    // Update Coefficients
+    updateFilters();
+
+    // 2. Amp Simulation (Tube Sat + EQ)
+    const bool ampIsActive = isAmpActuallyActive();
+    if (ampIsActive) {
+      auto &block = ctx.getOutputBlock();
+      const int numSamples = (int)block.getNumSamples();
+      const int numCh = (int)block.getNumChannels();
+
+      // Ensure scratch buffer is large enough (should be pre-allocated in
+      // prepare)
+      if (scratchBuffer.getNumSamples() < numSamples)
+        scratchBuffer.setSize(numCh, numSamples, false, false, true);
+
+      // --- CAPTURE TRUE DRY SIGNAL BEFORE ANY PROCESSING ---
+      for (int ch = 0; ch < numCh; ++ch)
+        scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
+
       // --- MOOSE PREAMP: Transformer Feel ---
       float peak = 0.0f;
-      if (tubeOn) {
-        auto &block = ctx.getOutputBlock();
 
-        // Pre-Saturation Filters (HPF 30 Hz + Presence Peak)
-        preHPF.process(ctx);
-        prePresence.process(ctx);
+      // Pre-Saturation Filters
+      preHPF.process(ctx);
+      prePresence.process(ctx);
 
-        for (size_t ch = 0; ch < block.getNumChannels(); ++ch) {
-          auto *d = block.getChannelPointer(ch);
+      for (int ch = 0; ch < numCh; ++ch) {
+        float *d = block.getChannelPointer(ch);
+        float channelDcFilter = dcFilter[ch];
 
-          // Create per-channel DC filter state
-          float channelDcFilter = dcFilter[ch];
+        for (int i = 0; i < numSamples; ++i) {
+          float x = d[i] * inputGainSm.getNextValue();
+          const float dryPreSat = x;
 
-          for (size_t i = 0; i < block.getNumSamples(); ++i) {
-            float x = d[i];
+          // Tube Saturation (More aggressive, asymmetric for 'Tube' feel)
+          const float drive = saturationDrive * 1.5f;
+          float hb = x * drive;
 
-            // Apply Input Gain (before saturation, controls drive amount)
-            x = x * inputGain;
+          // Asymmetric shaper (Tubes are often asymmetric)
+          const float tubeBias = 0.15f;
+          float y = std::tanh(hb + tubeBias) - std::tanh(tubeBias);
 
-            float absX = std::abs(x);
-            if (absX > peak)
-              peak = absX;
+          // Add some 2nd harmonic (asymmetry) and 3rd harmonic (grid current)
+          y += 0.06f * (hb * hb) + 0.04f * (hb * hb * hb);
 
-            // Minimal Bias (max 0.005, sehr clean)
-            const float bias = 0.002f;
-            x = x + bias;
+          // DC Removal (1-pole HPF @ 5 Hz)
+          channelDcFilter += (y - channelDcFilter) * dcRemovalCoeff;
+          y -= channelDcFilter;
 
-            // Solid-State Soft Clip (Mark's Method)
-            float y = markSoftClip(x, saturationDrive);
+          // Mix Tube Saturation (Smoothed)
+          const float currentTubeOn = tubeOnSm.getNextValue();
+          y = dryPreSat + (y - dryPreSat) * currentTubeOn;
 
-            // DC Removal (1-pole HPF @ 5 Hz) - PER CHANNEL
-            channelDcFilter += (y - channelDcFilter) * dcRemovalCoeff;
-            y = y - channelDcFilter;
+          // Slight volume compensation (saturation usually compresses)
+          d[i] = y * (0.85f - (currentTubeOn * 0.05f));
 
-            // Output Trim
-            d[i] = y * 0.85f;
-          }
-
-          // Save per-channel DC filter state
-          dcFilter[ch] = channelDcFilter;
+          float absY = std::abs(y);
+          if (absY > peak)
+            peak = absY;
         }
-
-        // Apply Sag (power supply collapse simulation)
-        sagModule.process(ctx);
-
-        // De-Saturation Filters (LPF 14 kHz + optional Harsh Dip @ 3.5 kHz)
-        deLPF.process(ctx);
-        if (harshDipEnabled) {
-          deHarshDip.process(ctx);
-        }
-
-        // Subsonic protection
-        dcBlocker.process(ctx);
+        dcFilter[ch] = channelDcFilter;
       }
+
+      // Apply Sag
+      sagModule.process(ctx);
+
+      // De-Saturation Filters
+      deLPF.process(ctx);
+      if (harshDipEnabled)
+        deHarshDip.process(ctx);
+
+      // Subsonic protection
+      dcBlocker.process(ctx);
+
       visualLevel.store(peak, std::memory_order_relaxed);
 
-      const double sr = sampleRate;
-
-      // Update smoothers (approximate per block)
-      auto numSamples = (int)ctx.getOutputBlock().getNumSamples();
-      bassDbSm.skip(numSamples);
-      midDbSm.skip(numSamples);
-      trebleDbSm.skip(numSamples);
-
-      float curBass = bassDbSm.getCurrentValue();
-      float curMid = midDbSm.getCurrentValue();
-      float curTreble = trebleDbSm.getCurrentValue();
-
-      // Direct dB values passed from processor
-      if (mid.state == nullptr) mid.state = new juce::dsp::IIR::Coefficients<float>();
-      *mid.state = * juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-          sr, 750.0, 0.9, juce::Decibels::decibelsToGain(curMid));
-
-      if (slapOn) {
-        // MID SCOOP: -12dB @ 600Hz, Q=1.0
-        if (slap.state == nullptr) slap.state = new juce::dsp::IIR::Coefficients<float>();
-        *slap.state = * juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-            sr, 600.0f, 1.0f, juce::Decibels::decibelsToGain(-12.0f));
-      } else {
-        if (slap.state == nullptr) slap.state = new juce::dsp::IIR::Coefficients<float>();
-        *slap.state = *
-            juce::dsp::IIR::Coefficients<float>::makeAllPass(sr, 1000.0f);
-      }
-
-      const float finalBassDb = slapOn ? curBass + 6.0f : curBass;
-      const float finalTrebleDb = slapOn ? curTreble + 6.0f : curTreble;
-
-      if (bass.state == nullptr) bass.state = new juce::dsp::IIR::Coefficients<float>();
-      *bass.state = * juce::dsp::IIR::Coefficients<float>::makeLowShelf(
-          sr, 120.0, 0.7, juce::Decibels::decibelsToGain(finalBassDb));
-
-      if (treble.state == nullptr) treble.state = new juce::dsp::IIR::Coefficients<float>();
-      *treble.state = * juce::dsp::IIR::Coefficients<float>::makeHighShelf(
-          sr, 3200.0, 0.7, juce::Decibels::decibelsToGain(finalTrebleDb));
-
+      // 3. Main Tone Stack
       bass.process(ctx);
       mid.process(ctx);
       treble.process(ctx);
 
-      if (slapOn)
-        slap.process(ctx);
+      // Always process Slap filter, but it will be neutral if slapMixSm is 0
+      slap.process(ctx);
 
       // Auto-Gain Compensation
       if (autoGainEnabled) {
-        // Estimate total EQ boost/cut
-        float eqCompensation = 0.0f;
-        eqCompensation -= curBass * 0.15f;   // Bass has strong impact
-        eqCompensation -= curMid * 0.1f;     // Mid has moderate impact
-        eqCompensation -= curTreble * 0.08f; // Treble has less impact
-        if (slapOn)
-          eqCompensation += 3.0f; // Slap adds significant boost
+        float eqComp = 0.0f;
+        eqComp -= bassDbSm.getCurrentValue() * 0.15f;
+        eqComp -= midDbSm.getCurrentValue() * 0.1f;
+        eqComp -= trebleDbSm.getCurrentValue() * 0.08f;
+        eqComp += slapMixSm.getCurrentValue() * 3.0f;
 
-        float compensationGain = juce::Decibels::decibelsToGain(eqCompensation);
+        float compGain = juce::Decibels::decibelsToGain(eqComp);
+        block.multiplyBy(compGain);
+      }
 
-        // Apply compensation
-        for (size_t ch = 0; ch < ctx.getOutputBlock().getNumChannels(); ++ch) {
-          auto *data = ctx.getOutputBlock().getChannelPointer(ch);
-          for (size_t i = 0; i < ctx.getOutputBlock().getNumSamples(); ++i) {
-            data[i] *= compensationGain;
+      // Final Crossfade for Amp Bypass (Smoothed)
+      const float startMix = ampOnSm.getCurrentValue();
+      ampOnSm.skip(numSamples);
+      const float endMix = ampOnSm.getCurrentValue();
+
+      if (startMix < 0.999f || endMix < 0.999f) {
+        for (int ch = 0; ch < numCh; ++ch) {
+          float *d = block.getChannelPointer(ch);
+          const float *dry = scratchBuffer.getReadPointer(ch);
+          for (int i = 0; i < numSamples; ++i) {
+            float progress = (float)i / (float)numSamples;
+            float mix = startMix + (endMix - startMix) * progress;
+            d[i] = dry[i] + (d[i] - dry[i]) * mix;
           }
         }
       }
     } else {
       visualLevel.store(0.0f, std::memory_order_relaxed);
+      ampOnSm.skip(numSamples);
+      tubeOnSm.skip(numSamples);
+      // Advance EQ anyway so it doesn't "snap" when turning on
+      bassDbSm.skip(numSamples);
+      midDbSm.skip(numSamples);
+      trebleDbSm.skip(numSamples);
     }
   }
 
@@ -272,7 +292,38 @@ public:
   }
 
 private:
-  using IIRFilter = juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>>;
+  void updateFilters() {
+    float b = bassDbSm.getCurrentValue();
+    float m = midDbSm.getCurrentValue();
+    float t = trebleDbSm.getCurrentValue();
+    float sMix = slapMixSm.getCurrentValue();
+
+    // Smoothed Slap additions (+5dB Bass/Treble when on)
+    float finalBassDb = b + (sMix * 5.0f);
+    *bass.state = *juce::dsp::IIR::Coefficients<float>::makeLowShelf(
+        sampleRate, 85.0, 0.7, juce::Decibels::decibelsToGain(finalBassDb));
+
+    *mid.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        sampleRate, 550.0, 0.7, juce::Decibels::decibelsToGain(m));
+
+    // Slap Scoop: Smooth the gain from 0dB to -12dB based on sMix
+    float slapGainDb = sMix * -12.0f;
+    *slap.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        sampleRate, 500.0f, 1.0f, juce::Decibels::decibelsToGain(slapGainDb));
+
+    float finalTrebleDb = t + (sMix * 5.0f);
+    *treble.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf(
+        sampleRate, 4000.0, 0.7, juce::Decibels::decibelsToGain(finalTrebleDb));
+
+    lastB = b;
+    lastM = m;
+    lastT = t;
+    lastSlapMix = sMix;
+  }
+
+  using IIRFilter =
+      juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>,
+                                     juce::dsp::IIR::Coefficients<float>>;
   IIRFilter bass, mid, treble, slap;
   IIRFilter dcBlocker;
   std::atomic<float> visualLevel{0.0f};
@@ -295,15 +346,22 @@ private:
   double sampleRate{44100.0};
   bool prepared{false};
 
+  // Cache for filter updates
+  float lastB{-999.0f}, lastM{-999.0f}, lastT{-999.0f};
+  float lastSlapMix{-1.0f};
+
   // Parameters
-  bool ampOn = false;
-  bool tubeOn = false;
   bool slapOn = false;
   bool autoGainEnabled = false;
   bool harshDipEnabled = false; // Optional 3.5 kHz dip
-  float saturationDrive = 1.6f; // 1.0 bis 2.0 (default: 1.6)
+  float saturationDrive = 1.8f; // 1.0 bis 2.0 (default 1.8 for more bite)
   float inputGainDb = 0.0f;     // -6 bis +12 dB (default: 0dB)
-  float inputGain = 1.0f;       // Linear gain multiplier
+  juce::AudioBuffer<float> scratchBuffer;
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGainSm{
+      1.0f};
+  juce::SmoothedValue<float> ampOnSm;
+  juce::SmoothedValue<float> tubeOnSm;
+  juce::SmoothedValue<float> slapMixSm;
 
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> bassDbSm{0.0f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> midDbSm{0.0f};

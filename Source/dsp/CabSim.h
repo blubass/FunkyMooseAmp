@@ -52,7 +52,6 @@ public:
     hp.reset();
     lp.reset();
     mid.reset();
-    mid.reset();
     convolver.reset();
     mixer.reset();
   }
@@ -72,6 +71,9 @@ public:
     if (type == CustomIR) {
       if (isCustomIrLoaded) {
         convolver.process(ctx);
+        // Boost IR signal: standard normalization often leaves IRs at -12dB or
+        // lower. We boost by 6dB to bring it closer to the dry signal level.
+        ctx.getOutputBlock().multiplyBy(juce::Decibels::decibelsToGain(6.0f));
       }
     } else {
       updateFilters(type);
@@ -90,23 +92,23 @@ private:
     lastType = type;
 
     if (type == Cab4x10) {
-      // 4x10: Tight Bass, Punchy Mids
+      // 4x10: Deep Mid Scoop for 'Modern' clarity
       *hp.state =
-          *juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 75.0f);
+          *juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 65.0f);
       *lp.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate,
-                                                                    5500.0f);
-      // Slight scoop at 400Hz for "Modern" sound
+                                                                    6500.0f);
+      // Deeper scoop at 400Hz to remove 'mittig' boxiness
       *mid.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-          sampleRate, 450.0f, 0.8f, 0.7f);
+          sampleRate, 400.0f, 0.7f, 0.5f); // Deeper scoop (-6dB)
     } else if (type == Cab1x15) {
-      // 1x15: Deep Bass, Warm/Dark
+      // 1x15: Solid Bass, controlled Low-Mids
       *hp.state =
-          *juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 45.0f);
+          *juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 40.0f);
       *lp.state = *juce::dsp::IIR::Coefficients<float>::makeLowPass(sampleRate,
-                                                                    3200.0f);
-      // Low-Mid Bump for warmth
+                                                                    4200.0f);
+      // Reduced Low-Mid Bump to avoid muddiness
       *mid.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-          sampleRate, 140.0f, 1.2f, 1.8f); // +5dB approx
+          sampleRate, 160.0f, 1.0f, 1.4f); // +3dB approx
     }
   }
 

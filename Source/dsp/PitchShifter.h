@@ -13,7 +13,7 @@ public:
       : fft(10) // 2^10 = 1024
   {
     fftFrameSize = 1024;
-    osamp = 4;
+    osamp = 2; // Reduced from 4 to 1/2 the CPU load
     stepSize = fftFrameSize / osamp;
     freqPerBin = 0.0;
     expct = 2.0 * juce::MathConstants<double>::pi * (double)stepSize /
@@ -30,19 +30,41 @@ public:
     gAnaMagn.assign(8192, 0.0f);
     gSynFreq.assign(8192, 0.0f);
     gSynMagn.assign(8192, 0.0f);
+    fftWorksp.assign(2048, 0.0f);
+  }
+
+  void reset() {
+    std::fill(gInFIFO.begin(), gInFIFO.end(), 0.0f);
+    std::fill(gOutFIFO.begin(), gOutFIFO.end(), 0.0f);
+    std::fill(gLastPhase.begin(), gLastPhase.end(), 0.0f);
+    std::fill(gSumPhase.begin(), gSumPhase.end(), 0.0f);
+    std::fill(gOutputAccum.begin(), gOutputAccum.end(), 0.0f);
+    std::fill(gAnaFreq.begin(), gAnaFreq.end(), 0.0f);
+    std::fill(gAnaMagn.begin(), gAnaMagn.end(), 0.0f);
+    std::fill(gSynFreq.begin(), gSynFreq.end(), 0.0f);
+    std::fill(gSynMagn.begin(), gSynMagn.end(), 0.0f);
+    std::fill(fftWorksp.begin(), fftWorksp.end(), 0.0f);
+    rover = inFifoLatency;
   }
 
   void prepare(double sampleRate) {
     this->sampleRate = sampleRate;
     freqPerBin = sampleRate / (double)fftFrameSize;
+    fftWorksp.assign(2 * (size_t)fftFrameSize, 0.0f);
   }
 
   void process(float pitchShift, int numSampsToProcess, float *indata,
                float *outdata) {
+    if (pitchShift < 0.1f)
+      pitchShift = 0.5f; // Safety
     int fftFrameSize2 = fftFrameSize / 2;
 
     for (int i = 0; i < numSampsToProcess; i++) {
-      gInFIFO[(size_t)rover] = indata[i];
+      float sample = indata[i];
+      if (!std::isfinite(sample))
+        sample = 0.0f;
+
+      gInFIFO[(size_t)rover] = sample;
       outdata[i] = gOutFIFO[(size_t)(rover - inFifoLatency)];
       rover++;
 
@@ -50,23 +72,29 @@ public:
         rover = inFifoLatency;
 
         // Windowing
-        std::vector<float> fftWorksp(2 * (size_t)fftFrameSize, 0.0f);
+        std::fill(fftWorksp.begin(), fftWorksp.end(), 0.0f);
         for (int k = 0; k < fftFrameSize; k++) {
           double window = -0.5 * cos(2.0 * juce::MathConstants<double>::pi *
                                      (double)k / (double)fftFrameSize) +
                           0.5;
-          fftWorksp[2 * (size_t)k] = (float)(gInFIFO[(size_t)k] * window);
-          fftWorksp[2 * (size_t)k + 1] = 0.0f;
+          fftWorksp[(size_t)k] = (float)(gInFIFO[(size_t)k] * window);
         }
 
-        // Analysis FFT
-        smbFft(fftWorksp.data(), fftFrameSize, -1);
+        // Analysis FFT (Real to Complex)
+        fft.performRealOnlyForwardTransform(fftWorksp.data());
 
+        // Process complex data
         for (int k = 0; k <= fftFrameSize2; k++) {
-          double real = fftWorksp[2 * (size_t)k];
-          double imag = fftWorksp[2 * (size_t)k + 1];
+          float real = fftWorksp[(size_t)(2 * k)];
+          float imag = fftWorksp[(size_t)(2 * k + 1)];
+
           double magn = 2.0 * sqrt(real * real + imag * imag);
           double phase = atan2(imag, real);
+
+          if (!std::isfinite(magn))
+            magn = 0.0;
+          if (!std::isfinite(phase))
+            phase = 0.0;
 
           double tmp = phase - gLastPhase[(size_t)k];
           gLastPhase[(size_t)k] = (float)phase;
@@ -97,6 +125,7 @@ public:
         }
 
         // Synthesis
+        std::fill(fftWorksp.begin(), fftWorksp.end(), 0.0f);
         for (int k = 0; k <= fftFrameSize2; k++) {
           double magn = gSynMagn[(size_t)k];
           double tmp = gSynFreq[(size_t)k];
@@ -105,26 +134,33 @@ public:
           tmp = 2.0 * juce::MathConstants<double>::pi * tmp / (double)osamp;
           tmp += (double)k * expct;
           gSumPhase[(size_t)k] += (float)tmp;
+
+          // Phase normalization to prevent overflow/buzzing
+          if (gSumPhase[(size_t)k] > 1000.0f)
+            gSumPhase[(size_t)k] -= 2000.0f;
+          if (gSumPhase[(size_t)k] < -1000.0f)
+            gSumPhase[(size_t)k] += 2000.0f;
+
           double phase = gSumPhase[(size_t)k];
 
-          fftWorksp[2 * (size_t)k] = (float)(magn * cos(phase));
-          fftWorksp[2 * (size_t)k + 1] = (float)(magn * sin(phase));
+          fftWorksp[(size_t)(2 * k)] = (float)(magn * cos(phase));
+          fftWorksp[(size_t)(2 * k + 1)] = (float)(magn * sin(phase));
         }
 
-        for (int k = fftFrameSize + 2; k < 2 * fftFrameSize; k++)
-          fftWorksp[(size_t)k] = 0.0f;
-
-        // Synthesis FFT
-        smbFft(fftWorksp.data(), fftFrameSize, 1);
+        // Synthesis FFT (Complex to Real)
+        fft.performRealOnlyInverseTransform(fftWorksp.data());
 
         // Windowing and Overlap-Add
         for (int k = 0; k < fftFrameSize; k++) {
           double window = -0.5 * cos(2.0 * juce::MathConstants<double>::pi *
                                      (double)k / (double)fftFrameSize) +
                           0.5;
-          gOutputAccum[(size_t)k] +=
-              (float)(2.0 * window * fftWorksp[2 * (size_t)k] /
-                      (double)(fftFrameSize2 * osamp));
+          // JUCE Inverse Transform already scales by 1/N.
+          // Redundant division here made the signal inaudible.
+          float outSample = (float)(2.0 * window * fftWorksp[(size_t)k]);
+          if (!std::isfinite(outSample))
+            outSample = 0.0f;
+          gOutputAccum[(size_t)k] += outSample;
         }
         for (int k = 0; k < stepSize; k++)
           gOutFIFO[(size_t)k] = gOutputAccum[(size_t)k];
@@ -137,61 +173,9 @@ public:
     }
   }
 
+  int getLatency() const { return inFifoLatency; }
+
 private:
-  void smbFft(float *fftBuffer, long fftFrameSize, long sign) {
-    float wr, wi, arg, *p1, *p2, temp;
-    float tr, ti, ur, ui, *p1r, *p1i, *p2r, *p2i;
-    long i, bitm, j, le, le2, k;
-
-    for (i = 2; i < 2 * fftFrameSize - 2; i += 2) {
-      for (bitm = 2, j = 0; bitm < 2 * fftFrameSize; bitm <<= 1) {
-        if (i & bitm)
-          j++;
-        j <<= 1;
-      }
-      if (i < j) {
-        p1 = fftBuffer + i;
-        p2 = fftBuffer + j;
-        temp = *p1;
-        *(p1++) = *p2;
-        *(p2++) = temp;
-        temp = *p1;
-        *p1 = *p2;
-        *p2 = temp;
-      }
-    }
-    for (k = 0, le = 2; k < (long)(log(fftFrameSize) / log(2.) + .5); k++) {
-      le <<= 1;
-      le2 = le >> 1;
-      ur = 1.0;
-      ui = 0.0;
-      arg = (float)(juce::MathConstants<double>::pi / (le2 >> 1));
-      wr = cos(arg);
-      wi = (float)(sign * sin(arg));
-      for (j = 0; j < le2; j += 2) {
-        p1r = fftBuffer + j;
-        p1i = p1r + 1;
-        p2r = p1r + le2;
-        p2i = p2r + 1;
-        for (i = j; i < 2 * fftFrameSize; i += le) {
-          tr = *p2r * ur - *p2i * ui;
-          ti = *p2r * ui + *p2i * ur;
-          *p2r = *p1r - tr;
-          *p2i = *p1i - ti;
-          *p1r += tr;
-          *p1i += ti;
-          p1r += le;
-          p1i += le;
-          p2r += le;
-          p2i += le;
-        }
-        tr = ur * wr - ui * wi;
-        ui = ur * wi + ui * wr;
-        ur = tr;
-      }
-    }
-  }
-
   juce::dsp::FFT fft;
   int fftFrameSize;
   int osamp;
@@ -203,5 +187,5 @@ private:
   double sampleRate = 44100.0;
 
   std::vector<float> gInFIFO, gOutFIFO, gLastPhase, gSumPhase, gOutputAccum,
-      gAnaFreq, gAnaMagn, gSynFreq, gSynMagn;
+      gAnaFreq, gAnaMagn, gSynFreq, gSynMagn, fftWorksp;
 };

@@ -145,7 +145,7 @@ public:
     const float denom = float(juce::jmax(1, n * chs));
     const float inRms = std::sqrt(inSum / denom);
     const float outRms = std::sqrt(outSum / denom);
-    const float tau = 0.035f;
+    const float tau = 0.02f; // Faster RMS for snappier meters
     const float alpha = 1.0f - std::exp(-float(n) / float(sampleRate * tau));
     inRmsSmooth += alpha * (inRms - inRmsSmooth);
     outRmsSmooth += alpha * (outRms - outRmsSmooth);

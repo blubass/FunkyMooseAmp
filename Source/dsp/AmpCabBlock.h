@@ -8,9 +8,8 @@
 class AmpCabBlock {
 public:
   void prepare(const juce::dsp::ProcessSpec &spec) {
-    // 4x Oversampling
     os.reset(new juce::dsp::Oversampling<float>(
-        spec.numChannels, 2,
+        spec.numChannels, 2, // 4x
         juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true));
     os->initProcessing(spec.maximumBlockSize);
 
@@ -20,7 +19,9 @@ public:
         spec.maximumBlockSize * (int)os->getOversamplingFactor();
 
     amp.prepare(osSpec);
-    cab.prepare(osSpec);
+
+    // Cab processes at base sample rate
+    cab.prepare(spec);
   }
 
   void reset() {
@@ -35,14 +36,16 @@ public:
       return;
 
     juce::dsp::AudioBlock<float> block = ctx.getOutputBlock();
+
+    // Oversample always to keep constant latency and avoid clicks
     juce::dsp::AudioBlock<float> osBlock = os->processSamplesUp(block);
-
     juce::dsp::ProcessContextReplacing<float> osCtx(osBlock);
-
     amp.process(osCtx);
-    cab.process(osCtx);
-
     os->processSamplesDown(block);
+
+    // 2. Process Cab at BASE sample rate (much more efficient)
+    juce::dsp::ProcessContextReplacing<float> baseCtx(block);
+    cab.process(baseCtx);
   }
 
   AmpToneModule &getAmp() { return amp; }

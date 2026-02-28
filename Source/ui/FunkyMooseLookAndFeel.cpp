@@ -66,13 +66,25 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     }
     ig.restoreState();
 
-    // --- DROP SHADOW ---
+    // --- REALISTIC 3D DROP SHADOW ---
     {
-      juce::DropShadow ds(
-          juce::Colours::black.withAlpha(isMaster ? 0.94f : 0.78f), 4, {2, 3});
       juce::Path shadow;
       shadow.addEllipse(bounds);
-      ds.drawForPath(ig, shadow);
+
+      // 1. Soft Ambient / Directional Shadow (Wide & Soft)
+      juce::DropShadow dsAmbient(
+          juce::Colours::black.withAlpha(isMaster ? 0.65f : 0.55f), 12, {2, 4});
+      dsAmbient.drawForPath(ig, shadow);
+
+      // 2. Core Shadow (Darker, tighter, pulling down-right)
+      juce::DropShadow dsCore(
+          juce::Colours::black.withAlpha(isMaster ? 0.85f : 0.75f), 6, {1, 3});
+      dsCore.drawForPath(ig, shadow);
+
+      // 3. Contact Shadow (Very tight, anchors the knob to the plate)
+      juce::DropShadow dsContact(juce::Colours::black.withAlpha(0.90f), 2,
+                                 {0, 1});
+      dsContact.drawForPath(ig, shadow);
     }
 
     // --- OUTER METAL RING ---
@@ -126,13 +138,27 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     ig.fillEllipse(cap);
     ig.setColour(juce::Colours::black.withAlpha(0.65f));
     ig.drawEllipse(cap.reduced(1.0f), 1.2f);
-    ig.setColour(juce::Colours::white.withAlpha(0.12f));
-    ig.drawEllipse(cap.reduced(0.5f), 1.0f);
+
+    // Hard Bevel Highlight (Top Leftish)
+    juce::ColourGradient bevelHigh(
+        juce::Colours::white.withAlpha(0.35f), cx - radius * 0.7f,
+        cy - radius * 0.7f, juce::Colours::transparentWhite, cx, cy, true);
+    ig.setGradientFill(bevelHigh);
+    ig.drawEllipse(cap.reduced(0.5f), 1.5f);
+
+    // Hard Bevel Shadow (Bottom Rightish)
+    juce::ColourGradient bevelDark(juce::Colours::transparentWhite, cx, cy,
+                                   juce::Colours::black.withAlpha(0.8f),
+                                   cx + radius * 0.7f, cy + radius * 0.7f,
+                                   true);
+    ig.setGradientFill(bevelDark);
+    ig.drawEllipse(cap.reduced(0.5f), 1.5f);
+
     if (id == "AMP") {
       ig.setColour(juce::Colours::white.withAlpha(0.18f));
       ig.drawEllipse(cap.reduced(1.4f), 1.0f);
     }
-    ig.setColour(juce::Colours::black.withAlpha(id == "AMP" ? 0.65f : 0.55f));
+    ig.setColour(juce::Colours::black.withAlpha(id == "AMP" ? 0.75f : 0.65f));
     ig.drawEllipse(cap.reduced(2.2f), 1.0f);
     if (isMaster) {
       ig.setColour(juce::Colours::black.withAlpha(0.25f));
@@ -158,31 +184,63 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
   const float myEndAngle = juce::MathConstants<float>::pi * 2.25f;
   float angle = myStartAngle + sliderPos * (myEndAngle - myStartAngle);
 
-  // Specular Highlight (SSL shine)
-  {
-    float hiReduce = isMaster ? 0.885f : (id == "AMP" ? 0.86f : 0.84f);
-    auto hi = cap.reduced(cap.getWidth() * hiReduce);
-    float specX =
-        cx - cap.getWidth() * 0.30f + std::cos(angle) * radius * 0.12f;
-    float specY =
-        cy - cap.getHeight() * 0.30f + std::sin(angle) * radius * 0.12f;
-    hi.setPosition(specX, specY);
-    float highlightAlpha = isMaster ? 0.42f : (id == "AMP" ? 0.34f : 0.30f);
-    juce::ColourGradient shine(juce::Colours::white.withAlpha(highlightAlpha),
-                               hi.getCentreX(), hi.getCentreY(),
-                               juce::Colours::transparentWhite, hi.getRight(),
-                               hi.getBottom(), true);
-    g.setGradientFill(shine);
-    g.fillEllipse(hi);
-    float specAlpha = isMaster ? 0.35f : 0.25f;
-    g.setColour(juce::Colours::white.withAlpha(specAlpha));
-    g.drawEllipse(hi.reduced(hi.getWidth() * 0.3f), 1.2f);
-    float pingAlpha = isMaster ? 0.70f : 0.55f;
-    float pingX = cx - radius * 0.45f + std::cos(angle - 0.3f) * radius * 0.08f;
-    float pingY = cy - radius * 0.45f + std::sin(angle - 0.3f) * radius * 0.08f;
-    g.setColour(juce::Colours::white.withAlpha(pingAlpha));
-    g.fillEllipse(pingX, pingY, 2.0f, 2.0f);
+  // --- DULL VINTAGE SPECULAR HIGHLIGHT ---
+  float hiReduce = isMaster ? 0.885f : (id == "AMP" ? 0.86f : 0.84f);
+  auto hi = cap.reduced(cap.getWidth() * hiReduce);
+  float specX = cx - cap.getWidth() * 0.30f + std::cos(angle) * radius * 0.12f;
+  float specY = cy - cap.getHeight() * 0.30f + std::sin(angle) * radius * 0.12f;
+  hi.setPosition(specX, specY);
+  float highlightAlpha =
+      isMaster
+          ? 0.45f
+          : (id == "AMP" ? 0.35f : 0.30f); // Dulled highlight for aged plastic
+  juce::Colour agedWhite(0xffebd8b8);      // Yellowed sun-faded plastic white
+
+  juce::ColourGradient shine(
+      agedWhite.withAlpha(highlightAlpha), hi.getCentreX(), hi.getCentreY(),
+      juce::Colours::transparentWhite, hi.getRight(), hi.getBottom(), true);
+  g.setGradientFill(shine);
+  g.fillEllipse(hi);
+
+  // Dull hot spot inside the specular
+  g.setColour(
+      agedWhite.withAlpha(highlightAlpha * 0.5f)); // Much softer hot spot
+  g.fillEllipse(hi.reduced(hi.getWidth() * 0.4f));
+
+  float specAlpha = isMaster ? 0.25f : 0.15f; // Dulled ring
+  g.setColour(agedWhite.withAlpha(specAlpha));
+  g.drawEllipse(hi.reduced(hi.getWidth() * 0.3f), 1.2f);
+  float pingAlpha = isMaster ? 0.60f : 0.45f;
+  float pingX = cx - radius * 0.45f + std::cos(angle - 0.3f) * radius * 0.08f;
+  float pingY = cy - radius * 0.45f + std::sin(angle - 0.3f) * radius * 0.08f;
+  g.setColour(agedWhite.withAlpha(pingAlpha));
+  g.fillEllipse(pingX, pingY, 2.5f, 2.5f);
+
+  // Dirt on the cap (subtle speckled grime)
+  juce::Random grimeRng((int)(x + y + sliderPos * 100)); // Static per position
+  g.setColour(juce::Colours::black.withAlpha(0.12f));
+  for (int i = 0; i < 40; ++i) {
+    float gx = cx - radius * 0.6f + grimeRng.nextFloat() * radius * 1.2f;
+    float gy = cy - radius * 0.6f + grimeRng.nextFloat() * radius * 1.2f;
+    g.fillEllipse(gx, gy, 1.0f + grimeRng.nextFloat() * 1.5f,
+                  1.0f + grimeRng.nextFloat() * 1.5f);
   }
+
+  // Bounce Light (Subtle reflection from bottom right)
+  auto bounce = cap.reduced(cap.getWidth() * 0.85f);
+  float bounceX =
+      cx + cap.getWidth() * 0.35f +
+      std::cos(angle + juce::MathConstants<float>::pi) * radius * 0.1f;
+  float bounceY =
+      cy + cap.getHeight() * 0.35f +
+      std::sin(angle + juce::MathConstants<float>::pi) * radius * 0.1f;
+  bounce.setPosition(bounceX, bounceY);
+  juce::ColourGradient bounceGrad(juce::Colours::white.withAlpha(0.08f),
+                                  bounce.getCentreX(), bounce.getCentreY(),
+                                  juce::Colours::transparentWhite,
+                                  bounce.getX(), bounce.getY(), true);
+  g.setGradientFill(bounceGrad);
+  g.fillEllipse(bounce);
 
   // Antler Notches (Master)
   if (radius > 26.0f) {
@@ -198,24 +256,38 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     }
   }
 
-  // Indicator
+  // Indicator (3D Needle)
   {
-    float pointerLength = radius * 0.75f;
-    float pointerWidth = juce::jmax(1.8f, radius * 0.088f);
+    float pointerLength = radius * 0.78f;
+    float pointerWidth = juce::jmax(2.0f, radius * 0.095f);
     juce::Point<float> p1(cx, cy);
     juce::Point<float> p2(cx + std::cos(angle) * pointerLength,
                           cy + std::sin(angle) * pointerLength);
-    g.setColour(juce::Colours::black.withAlpha(0.6f));
+
+    // Carved Needle Shadow (Inner cut)
+    g.setColour(juce::Colours::black.withAlpha(0.95f)); // Much darker
     g.drawLine(p1.x + 1.5f, p1.y + 1.5f, p2.x + 1.5f, p2.y + 1.5f,
-               pointerWidth);
-    g.setColour(juce::Colours::white.withAlpha(isMaster ? 1.0f : 0.9f));
+               pointerWidth * 1.2f); // Slightly wider to look like a trench
+
+    // Catch light on the edge of the carved trench
+    g.setColour(juce::Colours::white.withAlpha(0.4f));
+    g.drawLine(p1.x - 1.0f, p1.y - 1.0f, p2.x - 1.0f, p2.y - 1.0f,
+               pointerWidth * 0.8f);
+
+    // Needle Body (Aged off-white plastic with grime)
+    juce::Colour agedNeedleWhite = juce::Colour(0xffebd8b8);
+    juce::ColourGradient needleGrad(agedNeedleWhite.darker(0.1f), p1,
+                                    agedNeedleWhite.darker(0.5f), p2, false);
+    g.setGradientFill(needleGrad);
     g.drawLine(p1.x, p1.y, p2.x, p2.y, pointerWidth);
-    g.setColour(juce::Colours::white.withAlpha(0.5f));
-    g.drawLine(p1.x, p1.y, p2.x, p2.y, pointerWidth * 0.4f);
+
+    // Sharp Center Ridge on needle (Dirtier)
+    g.setColour(agedNeedleWhite.withAlpha(0.3f));
+    g.drawLine(p1.x, p1.y, p2.x, p2.y, pointerWidth * 0.3f);
   }
 
-  // Moose Emboss
-  if (slider.getName() == "GAIN_AMP" || slider.getName() == "MASTER_OUT") {
+  // Moose Emboss / 3D Text
+  if (slider.getName() == "GAIN_AMP") {
     const float s = juce::jmax(4.25f, radius * 0.238f);
     auto m = juce::Rectangle<float>(cx - s * 0.5f, cy - s * 0.35f, s, s * 0.7f);
     juce::Path p;
@@ -236,6 +308,29 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     g.strokePath(lightPath,
                  juce::PathStrokeType(1.6f, juce::PathStrokeType::curved,
                                       juce::PathStrokeType::rounded));
+  } else if (slider.getName() == "MASTER_OUT") {
+    // 3D Embossed "MASTER" text
+    juce::Font masterFont(juce::jmax(12.0f, radius * 0.35f), juce::Font::bold);
+    g.setFont(masterFont);
+
+    juce::String text = "MASTER";
+    juce::Rectangle<float> textArea(cx - radius * 0.7f, cy - radius * 0.7f,
+                                    radius * 1.4f, radius * 1.4f);
+
+    // Dark inner shadow (cut-in effect)
+    g.setColour(juce::Colours::black.withAlpha(0.65f));
+    g.drawFittedText(text, textArea.translated(0.0f, 1.5f).toNearestInt(),
+                     juce::Justification::centred, 1);
+
+    // Light specular highlight (bottom edge of cut)
+    g.setColour(juce::Colours::white.withAlpha(0.45f));
+    g.drawFittedText(text, textArea.translated(0.0f, -1.0f).toNearestInt(),
+                     juce::Justification::centred, 1);
+
+    // Base color or slight gradient for the text itself (to look embossed)
+    g.setColour(baseColour.darker(0.3f));
+    g.drawFittedText(text, textArea.toNearestInt(),
+                     juce::Justification::centred, 1);
   }
 }
 
@@ -250,10 +345,19 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
       button.isMouseOverOrDragging() || shouldDrawButtonAsHighlighted;
   const bool down = button.isMouseButtonDown() || shouldDrawButtonAsDown;
 
-  g.setColour(juce::Colours::black.withAlpha(0.45f));
-  g.fillRoundedRectangle(r, 3.0f);
+  // Contact Shadow (Grounding the button)
+  g.setColour(juce::Colours::black.withAlpha(0.6f));
+  g.fillRoundedRectangle(r.translated(1.5f, 1.8f), 3.0f);
+
+  // Button Body (Hardened Plastic/Metal)
   g.setColour(juce::Colours::black.withAlpha(0.65f));
-  g.drawRoundedRectangle(r, 3.0f, 1.2f);
+  g.fillRoundedRectangle(r, 3.0f);
+
+  // Metallic Rim (Bevel)
+  g.setColour(juce::Colours::white.withAlpha(0.18f));
+  g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, 1.0f);
+  g.setColour(juce::Colours::black.withAlpha(0.85f));
+  g.drawRoundedRectangle(r, 3.0f, 0.8f);
 
   auto lamp = r.reduced(4.0f);
   // Re-use dynamic color logic just in case, but usually fixed in header
@@ -263,18 +367,32 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
   bool isAutoGain =
       (buttonName == "ampAutoGain" || buttonName == "compAutoMakeup" ||
        buttonName == "autoGain");
-  auto lampCol = on ? (isAutoGain ? juce::Colour(0xff44ccff) : accentColor)
-                    : juce::Colours::white.withAlpha(0.10f);
+  // Lamp OFF is duller and dirtier
+  auto lampCol =
+      on ? (isAutoGain ? juce::Colour(0xff44ccff) : accentColor)
+         : juce::Colours::white.withAlpha(0.05f); // much duller off-state
 
-  float glowA = on ? 0.65f : (hover ? 0.18f : 0.10f);
+  // Add Oxidation to the metallic rim
+  juce::Random oxRng((int)(r.getX() + r.getY()));
+  g.setColour(
+      juce::Colour(0xffaab0b0).withAlpha(0.35f)); // white/grey oxidation
+  for (int i = 0; i < 15; ++i) {
+    g.fillEllipse(r.getX() + oxRng.nextFloat() * r.getWidth(),
+                  r.getY() + oxRng.nextFloat() * r.getHeight(),
+                  1.0f + oxRng.nextFloat() * 2.5f,
+                  1.0f + oxRng.nextFloat() * 2.0f);
+  }
+
+  float glowA = on ? 0.65f : (hover ? 0.15f : 0.05f);
   if (down)
     glowA *= 1.2f;
 
-  // Subtle pulsing afterglow for active buttons (micro-animation)
+  // Subtle pulsing afterglow for active buttons (flickering old LED)
   if (on) {
     float time = (float)juce::Time::getMillisecondCounterHiRes() * 0.001f;
-    float pulse = 0.85f + 0.15f * std::sin(time * 1.5f); // Slow, subtle pulse
-    glowA *= pulse;
+    float pulse = 0.85f + 0.15f * std::sin(time * 1.5f);    // Slow pulse
+    float flicker = 0.95f + 0.05f * std::sin(time * 30.0f); // Fast flicker
+    glowA *= (pulse * flicker);
   }
 
   g.setColour(lampCol.withAlpha(glowA * 0.35f));

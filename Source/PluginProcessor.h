@@ -90,16 +90,16 @@ public:
   // Exposed to editor for Elch animation.
   std::atomic<bool> punchEnabledForUI{false};
 
-  // Module bypass state tracking for DSP reset
+  bool lastGateOn = true;
   bool lastAmpOn = true;
-  bool lastCompOn = true;
-  bool lastLowCutOn = false;
-  bool lastMonoMakerOn = true;
-
+  bool lastCompOn = false;
   bool lastOctOn = false;
   bool lastEnvOn = false;
   bool lastPhaserOn = false;
   bool lastChorusOn = false;
+  bool lastMojoOn = true;
+  bool lastLowCutOn = false;
+  bool lastMonoMakerOn = true;
 
   std::atomic<float> cpuUsage{0.0f};
 
@@ -110,6 +110,51 @@ public:
   std::atomic<bool> tunerIsOn{false};
 
   MooseDSPChain dspChain;
+
+  // Cached parameters for high-performance retrieval
+  std::atomic<float> *bypassParam = nullptr;
+  std::atomic<float> *autoGateParam = nullptr;
+  std::atomic<float> *octOnParam = nullptr;
+  std::atomic<float> *oct1Param = nullptr;
+  std::atomic<float> *oct2Param = nullptr;
+  std::atomic<float> *octMixParam = nullptr;
+  std::atomic<float> *envOnParam = nullptr;
+  std::atomic<float> *envDecayParam = nullptr;
+  std::atomic<float> *envRangeParam = nullptr;
+  std::atomic<float> *ampOnParam = nullptr;
+  std::atomic<float> *tubeOnParam = nullptr;
+  std::atomic<float> *slapParam = nullptr;
+  std::atomic<float> *ampBassParam = nullptr;
+  std::atomic<float> *ampMidParam = nullptr;
+  std::atomic<float> *ampTrebleParam = nullptr;
+  std::atomic<float> *ampVolumeParam = nullptr;
+  std::atomic<float> *ampGainParam = nullptr;
+  std::atomic<float> *ampAutoGainParam = nullptr;
+  std::atomic<float> *lowCutOnParam = nullptr;
+  std::atomic<float> *compOnParam = nullptr;
+  std::atomic<float> *compInputParam = nullptr;
+  std::atomic<float> *compThreshParam = nullptr;
+  std::atomic<float> *compMakeupParam = nullptr;
+  std::atomic<float> *compRatioParam = nullptr;
+  std::atomic<float> *compAttackParam = nullptr;
+  std::atomic<float> *compReleaseParam = nullptr;
+  std::atomic<float> *compAutoMakeupParam = nullptr;
+  std::atomic<float> *punchParam = nullptr;
+  std::atomic<float> *phaserOnParam = nullptr;
+  std::atomic<float> *phRateParam = nullptr;
+  std::atomic<float> *phMixParam = nullptr;
+  std::atomic<float> *phColourParam = nullptr;
+  std::atomic<float> *chorusOnParam = nullptr;
+  std::atomic<float> *chRateParam = nullptr;
+  std::atomic<float> *chDepthParam = nullptr;
+  std::atomic<float> *chMixParam = nullptr;
+  std::atomic<float> *fxParallelParam = nullptr;
+  std::atomic<float> *cabTypeParam = nullptr;
+  std::atomic<float> *irMixParam = nullptr;
+  std::atomic<float> *masterOutParam = nullptr;
+  std::atomic<float> *monoMakerParam = nullptr;
+  std::atomic<float> *monoMakerOnParam = nullptr;
+  std::atomic<float> *autoGainParam = nullptr;
 
 private:
   juce::AudioBuffer<float> dryBuffer;

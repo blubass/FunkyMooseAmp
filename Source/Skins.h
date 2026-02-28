@@ -106,19 +106,19 @@ static Palette getPalette(int index) {
             6.0f,
             juce::Colours::orange,
             juce::Colours::orange.withAlpha(0.4f)};
-  case 8: // Ampeg
-    return {juce::Colour(0xff1a237e),
-            juce::Colour(0xff3949ab),
-            juce::Colour(0xffc5cae9),
-            juce::Colour(0xffe0e0e0),
-            juce::Colour(0xff3949ab),
-            juce::Colours::white,
-            juce::Colour(0xff3f51b5),
-            juce::Colours::silver,
+  case 8:                             // Ampeg Black
+    return {juce::Colour(0xff050505), // Deep black background
+            juce::Colour(0xff121212), // Black textured metal plate
+            juce::Colour(0xff0a0a0a), // Darker inset panel
+            juce::Colour(0xfff0f0f0), // Silver/White Ampeg style knobs
+            juce::Colour(0xff3f51b5), // Blue Indicator
+            juce::Colour(0xffe0e0e0), // Silver/Off-white text
+            juce::Colour(0xff2196f3), // Ampeg Blue Accent
+            juce::Colour(0xff3f51b5), // Darker Blue
             FrameStyle::Piping,
             12.0f,
             2.0f,
-            juce::Colour(0xffc5cae9),
+            juce::Colour(0xff2196f3),
             juce::Colour(0xff3f51b5).withAlpha(0.4f)};
   case 9: // Toxic
     return {juce::Colour(0xff1b5e20),
@@ -134,20 +134,20 @@ static Palette getPalette(int index) {
             1.5f,
             juce::Colour(0xff64dd17),
             juce::Colours::lime.withAlpha(0.7f)};
-  default: // Classic
-    return {juce::Colour(0xff2d1a12),
-            juce::Colour(0xff1a110d),
-            juce::Colour(0xff3d2b1f),
-            juce::Colour(0xffe67e22),
-            juce::Colours::white,
-            juce::Colour(0xfff39c12),
-            juce::Colour(0xffe67e22),
-            juce::Colour(0xFFFFB000),
-            FrameStyle::Rounded,
-            15.0f,
-            2.0f,
-            juce::Colour(0xFFFFB000),
-            juce::Colour(0xFFFFB000).withAlpha(0.4f)};
+  default: // Classic (Now Ampeg Black)
+    return {juce::Colour(0xff050505),
+            juce::Colour(0xff121212),
+            juce::Colour(0xff0a0a0a),
+            juce::Colour(0xfff0f0f0),
+            juce::Colour(0xff3f51b5),
+            juce::Colour(0xffe0e0e0),
+            juce::Colour(0xff2196f3),
+            juce::Colour(0xff3f51b5),
+            FrameStyle::Piping,
+            12.0f,
+            4.0f,
+            juce::Colour(0xff2196f3),
+            juce::Colour(0xff3f51b5).withAlpha(0.4f)};
   }
 }
 } // namespace Skins

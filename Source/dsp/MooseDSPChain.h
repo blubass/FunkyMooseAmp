@@ -58,9 +58,11 @@ public:
   }
 
   float getLatency() const {
-    // Sum latencies of blocks that introduce latency (Oversampling)
-    // AmpCabBlock (Index 4) and Mojo (Index 7)
-    return chain.get<4>().getLatency() + chain.get<7>().getLatencyInSamples();
+    // Sum latencies of blocks that introduce latency (Oversampling/FFT)
+    // OctEnv (Index 1), AmpCabBlock (Index 4) and Mojo (Index 7)
+    return (float)chain.get<1>().getLatencyInSamples() +
+           chain.get<4>().getLatency() +
+           (float)chain.get<7>().getLatencyInSamples();
   }
 
   // Accessors to modules for parameter updates
@@ -92,6 +94,17 @@ public:
   const ModFX &getModFX() const { return chain.get<6>(); }
   const Mojo &getMojo() const { return chain.get<7>(); }
   const OutputGain &getOutputGain() const { return chain.get<8>(); }
+
+  template <int index> void setBypassed(bool bypassed) {
+    chain.setBypassed<index>(bypassed);
+  }
+
+  template <int index> void setBypassedAndReset(bool bypassed) {
+    if (chain.isBypassed<index>() != bypassed) {
+      chain.setBypassed<index>(bypassed);
+      chain.get<index>().reset();
+    }
+  }
 
 private:
   Chain chain;

@@ -32,11 +32,11 @@ FunkyMooseAudioProcessor::createParams() {
   p.push_back(std::make_unique<APF>(
       "ampGain", "Gain", juce::NormalisableRange<float>(-24.0f, 24.0f), -6.0f));
   p.push_back(std::make_unique<APF>(
-      "ampBass", "Bass", juce::NormalisableRange<float>(-12.0f, 12.0f), 0.0f));
+      "ampBass", "Bass", juce::NormalisableRange<float>(-18.0f, 18.0f), 0.0f));
   p.push_back(std::make_unique<APF>(
-      "ampMid", "Mid", juce::NormalisableRange<float>(-12.0f, 12.0f), 0.0f));
+      "ampMid", "Mid", juce::NormalisableRange<float>(-18.0f, 18.0f), 0.0f));
   p.push_back(std::make_unique<APF>(
-      "ampTreble", "Treble", juce::NormalisableRange<float>(-12.0f, 12.0f),
+      "ampTreble", "Treble", juce::NormalisableRange<float>(-18.0f, 18.0f),
       0.0f));
   p.push_back(std::make_unique<APF>(
       "ampVolume", "Volume", juce::NormalisableRange<float>(-24.0f, 6.0f),
@@ -78,7 +78,6 @@ FunkyMooseAudioProcessor::createParams() {
       "oct2", "Octave 2", juce::NormalisableRange<float>(0.0f, 100.0f), 40.0f));
   p.push_back(std::make_unique<APF>(
       "octMix", "Oct Mix", juce::NormalisableRange<float>(0.0f, 100.0f), 0.0f));
-  p.push_back(std::make_unique<APB>("octModern", "Modern Mode", false));
 
   p.push_back(std::make_unique<APB>("envOn", "Envelope On", false));
   p.push_back(std::make_unique<APF>("envAttack", "Attack",
@@ -141,6 +140,51 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   mState.spec.numChannels =
       (juce::uint32)juce::jmax(1, getTotalNumOutputChannels());
 
+  // Cache Parameters for high-performance retrieval
+  bypassParam = apvts.getRawParameterValue("bypass");
+  autoGateParam = apvts.getRawParameterValue("autoGate");
+  octOnParam = apvts.getRawParameterValue("octOn");
+  oct1Param = apvts.getRawParameterValue("oct1");
+  oct2Param = apvts.getRawParameterValue("oct2");
+  octMixParam = apvts.getRawParameterValue("octMix");
+  envOnParam = apvts.getRawParameterValue("envOn");
+  envDecayParam = apvts.getRawParameterValue("envDecay");
+  envRangeParam = apvts.getRawParameterValue("envRange");
+  ampOnParam = apvts.getRawParameterValue("ampOn");
+  tubeOnParam = apvts.getRawParameterValue("tubeOn");
+  slapParam = apvts.getRawParameterValue("slap");
+  ampBassParam = apvts.getRawParameterValue("ampBass");
+  ampMidParam = apvts.getRawParameterValue("ampMid");
+  ampTrebleParam = apvts.getRawParameterValue("ampTreble");
+  ampVolumeParam = apvts.getRawParameterValue("ampVolume");
+  ampGainParam = apvts.getRawParameterValue("ampGain");
+  ampAutoGainParam = apvts.getRawParameterValue("ampAutoGain");
+  lowCutOnParam = apvts.getRawParameterValue("lowCutOn");
+  compOnParam = apvts.getRawParameterValue("compOn");
+  compInputParam = apvts.getRawParameterValue("compInput");
+  compThreshParam = apvts.getRawParameterValue("compThresh");
+  compMakeupParam = apvts.getRawParameterValue("compMakeup");
+  compRatioParam = apvts.getRawParameterValue("compRatio");
+  compAttackParam = apvts.getRawParameterValue("compAttack");
+  compReleaseParam = apvts.getRawParameterValue("compRelease");
+  compAutoMakeupParam = apvts.getRawParameterValue("compAutoMakeup");
+  punchParam = apvts.getRawParameterValue("punch");
+  phaserOnParam = apvts.getRawParameterValue("phaserOn");
+  phRateParam = apvts.getRawParameterValue("phRate");
+  phMixParam = apvts.getRawParameterValue("phMix");
+  phColourParam = apvts.getRawParameterValue("phColour");
+  chorusOnParam = apvts.getRawParameterValue("chorusOn");
+  chRateParam = apvts.getRawParameterValue("chRate");
+  chDepthParam = apvts.getRawParameterValue("chDepth");
+  chMixParam = apvts.getRawParameterValue("chMix");
+  fxParallelParam = apvts.getRawParameterValue("fxParallel");
+  cabTypeParam = apvts.getRawParameterValue("cabType");
+  irMixParam = apvts.getRawParameterValue("irMix");
+  masterOutParam = apvts.getRawParameterValue("masterOut");
+  monoMakerParam = apvts.getRawParameterValue("monoMaker");
+  monoMakerOnParam = apvts.getRawParameterValue("monoMakerOn");
+  autoGainParam = apvts.getRawParameterValue("autoGain");
+
   dspChain.prepare(mState.spec);
 
   dryBuffer.setSize(mState.spec.numChannels, mState.spec.maximumBlockSize);
@@ -201,18 +245,24 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (totalNumInputChannels == 1 && buffer.getNumChannels() >= 2) {
     buffer.copyFrom(1, 0, buffer, 0, 0, buffer.getNumSamples());
   }
-  // Standalone: Audio Interfaces always provide stereo (In 1=L, In 2=R).
-  // A bass is mono. To prevent it only playing on the left ear, we sum L+R.
+  // Standalone Smart Mono Summing (prevents 6dB drop if only one input is used,
+  // but avoids +6dB boost if both are used)
   else if (wrapperType == juce::AudioProcessor::wrapperType_Standalone &&
            buffer.getNumChannels() >= 2) {
+    const int n = buffer.getNumSamples();
+    float lMag = buffer.getMagnitude(0, 0, n);
+    float rMag = buffer.getMagnitude(1, 0, n);
+
+    // If both have significant signal (> -60dB approx), sum with 0.5.
+    // Otherwise, sum with 1.0 to keep unity gain for the active channel.
+    float smartGain = (lMag > 0.001f && rMag > 0.001f) ? 0.5f : 1.0f;
+
     auto *L = buffer.getWritePointer(0);
     auto *R = buffer.getWritePointer(1);
-    for (int i = 0; i < buffer.getNumSamples(); ++i) {
-      float monoSum =
-          L[i] +
-          R[i]; // If Bass is only on L, R is 0. Sum gives perfect unity center.
-      L[i] = monoSum;
-      R[i] = monoSum;
+    for (int i = 0; i < n; ++i) {
+      float mono = (L[i] + R[i]) * smartGain;
+      L[i] = mono;
+      R[i] = mono;
     }
   }
 
@@ -225,8 +275,14 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto *R =
         (buffer.getNumChannels() > 1) ? buffer.getReadPointer(1) : nullptr;
 
+    // Same smart-gain logic for tuner to avoid "level trap"
+    float lMag = buffer.getMagnitude(0, 0, n);
+    float rMag =
+        (buffer.getNumChannels() > 1) ? buffer.getMagnitude(1, 0, n) : 0.0f;
+    float tunerSumGain = (lMag > 0.001f && rMag > 0.001f) ? 0.5f : 1.0f;
+
     for (int i = 0; i < n; ++i)
-      m[i] = 0.5f * (L[i] + (R ? R[i] : L[i]));
+      m[i] = (L[i] + (R ? R[i] : 0.0f)) * tunerSumGain;
 
     tunerFifo.push(m, n);
   }
@@ -236,11 +292,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                   buffer.getNumSamples());
 
   // HARD DSP BYPASS
-  // If active, we skip all processing. Input is already in 'buffer' (upmixed if
-  // needed).
-  if (apvts.getRawParameterValue("bypass")->load() > 0.5f) {
-    // Just pass through. We might want to fade, but "Hard" usually means
-    // immediate. We already cleared unused channels. Input is passed to output.
+  if (bypassParam->load() > 0.5f) {
     return;
   }
 
@@ -248,137 +300,128 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
   // 1. Octaver / Env
   {
-    auto &oct = dspChain.getOctEnv();
-    oct.setOctaveOn(apvts.getRawParameterValue("octOn")->load() > 0.5f);
-    oct.setOctave1(apvts.getRawParameterValue("oct1")->load() / 100.0f);
-    oct.setOctave2(apvts.getRawParameterValue("oct2")->load() / 100.0f);
-    oct.setOctaveMix(apvts.getRawParameterValue("octMix")->load() / 100.0f);
-    oct.setModernMode(apvts.getRawParameterValue("octModern")->load() > 0.5f);
+    auto &octEnv = dspChain.getOctEnv();
+    const bool octOn = octOnParam->load() > 0.5f;
+    const bool envOn = envOnParam->load() > 0.5f;
 
-    oct.setEnvelopeOn(apvts.getRawParameterValue("envOn")->load() > 0.5f);
-    oct.setEnvAttack(apvts.getRawParameterValue("envAttack")->load());
-    oct.setEnvDecay(apvts.getRawParameterValue("envDecay")->load());
-    oct.setEnvRange(apvts.getRawParameterValue("envRange")->load() / 100.0f);
+    const bool anyActive = octOn || envOn;
+    dspChain.setBypassed<1>(!anyActive);
+
+    octEnv.setOctaveOn(octOn);
+    octEnv.setEnvelopeOn(envOn);
+
+    octEnv.setOctave1(oct1Param->load() / 100.0f);
+    octEnv.setOctave2(oct2Param->load() / 100.0f);
+    octEnv.setOctaveMix(octMixParam->load() / 100.0f);
+    octEnv.setEnvDecay(envDecayParam->load());
+    octEnv.setEnvRange(envRangeParam->load() / 100.0f);
   }
 
   // 1.5 Smart Gate
   {
-    auto &gate = dspChain.getSmartGate();
-    gate.setEnabled(apvts.getRawParameterValue("autoGate")->load() > 0.5f);
+    const bool gateOn = autoGateParam->load() > 0.5f;
+    dspChain.setBypassed<0>(!gateOn);
+    dspChain.getSmartGate().setEnabled(gateOn);
   }
 
   // 2. Input Gain (Drive) + Comp Input
   {
-    float compInDb = apvts.getRawParameterValue("compInput")->load();
-    float ampGainDb = apvts.getRawParameterValue("ampGain")->load();
+    float compInDb = compInputParam->load();
+    float ampGainDb = ampGainParam->load();
     dspChain.getInputGain().setGainDecibels(compInDb + ampGainDb);
   }
 
   // 3. Amp / Tone
   {
     auto &amp = dspChain.getAmpTone();
-    bool ampOn = apvts.getRawParameterValue("ampOn")->load() > 0.5f;
-    // Reset if enabled state changes
-    if (ampOn != lastAmpOn) {
-      amp.reset();
-      lastAmpOn = ampOn;
-    }
-    amp.setAmpOn(ampOn);
-    amp.setTubeOn(apvts.getRawParameterValue("tubeOn")->load() > 0.5f);
-    amp.setSlapOn(apvts.getRawParameterValue("slap")->load() > 0.5f);
-    amp.setBassDb(apvts.getRawParameterValue("ampBass")->load());
-    amp.setMidDb(apvts.getRawParameterValue("ampMid")->load());
-    amp.setTrebleDb(apvts.getRawParameterValue("ampTreble")->load());
+    amp.setAmpOn(ampOnParam->load() > 0.5f);
+    amp.setTubeOn(tubeOnParam->load() > 0.5f);
+    amp.setSlapOn(slapParam->load() > 0.5f);
+    amp.setBassDb(ampBassParam->load());
+    amp.setMidDb(ampMidParam->load());
+    amp.setTrebleDb(ampTrebleParam->load());
 
     // LowCut
-    bool lcOn = apvts.getRawParameterValue("lowCutOn")->load() > 0.5f;
-    if (lcOn != lastLowCutOn) {
-      dspChain.getLowCut().reset();
-      lastLowCutOn = lcOn;
-    }
-    dspChain.setLowCutBypassed(!lcOn);
+    const bool lcOn = lowCutOnParam->load() > 0.5f;
+    dspChain.setBypassed<2>(!lcOn);
 
     // Auto-Gain
-    bool ampAutoGain = apvts.getRawParameterValue("ampAutoGain")->load() > 0.5f;
-    amp.setAutoGain(ampAutoGain);
-
-    // Note: ampVolume is post-overdrive channel volume, summed into OutputGain.
+    amp.setAutoGain(ampAutoGainParam->load() > 0.5f);
   }
 
   // 4. Compressor
   {
     auto &comp = dspChain.getCompressor();
+    const bool compOn = compOnParam->load() > 0.5f;
 
-    const bool compOn = apvts.getRawParameterValue("compOn")->load() > 0.5f;
+    dspChain.setBypassed<5>(!compOn);
+
     comp.setCompOn(compOn);
-    comp.setThresholdDb(apvts.getRawParameterValue("compThresh")->load());
-    comp.setRatioIndex((int)apvts.getRawParameterValue("compRatio")->load());
-    comp.setAttackMs(apvts.getRawParameterValue("compAttack")->load());
-    comp.setReleaseMs(apvts.getRawParameterValue("compRelease")->load());
-    comp.setMakeupGainDb(apvts.getRawParameterValue("compMakeup")->load());
+    comp.setThresholdDb(compThreshParam->load());
+    comp.setRatioIndex((int)compRatioParam->load());
+    comp.setAttackMs(compAttackParam->load());
+    comp.setReleaseMs(compReleaseParam->load());
+    comp.setMakeupGainDb(compMakeupParam->load());
+    comp.setAutoMakeup(compAutoMakeupParam->load() > 0.5f);
 
-    // Auto-Makeup (bounded inside compressor, safe)
-    const bool compAutoMakeup =
-        apvts.getRawParameterValue("compAutoMakeup")->load() > 0.5f;
-    comp.setAutoMakeup(compAutoMakeup);
-
-    // Bass sidechain HPF: prevents low-end pumping (slap tends to like a bit
-    // higher)
-
-    // "leichtes B" character: tie to Tube Saturation toggle (subtle, not fuzz)
-    const bool tubeOn = apvts.getRawParameterValue("tubeOn")->load() > 0.5f;
+    const bool punch = punchParam->load() > 0.5f;
+    comp.setPunch(punch);
+    punchEnabledForUI.store(punch);
   }
 
   // 5. ModFX
   {
     auto &mod = dspChain.getModFX();
-    mod.setPhaserOn(apvts.getRawParameterValue("phaserOn")->load() > 0.5f);
-    mod.setPhaserRate(apvts.getRawParameterValue("phRate")->load());
-    mod.setPhaserMix(apvts.getRawParameterValue("phMix")->load() / 100.0f);
-    mod.setPhaserColour(apvts.getRawParameterValue("phColour")->load());
+    const bool phOn = phaserOnParam->load() > 0.5f;
+    const bool chOn = chorusOnParam->load() > 0.5f;
 
-    mod.setChorusOn(apvts.getRawParameterValue("chorusOn")->load() > 0.5f);
-    mod.setChorusRate(apvts.getRawParameterValue("chRate")->load());
-    mod.setChorusDepth(apvts.getRawParameterValue("chDepth")->load());
-    mod.setChorusMix(apvts.getRawParameterValue("chMix")->load() / 100.0f);
+    const bool anyModActive = phOn || chOn;
+    dspChain.setBypassed<6>(!anyModActive);
 
-    mod.setParallel(apvts.getRawParameterValue("fxParallel")->load() > 0.5f);
+    mod.setPhaserOn(phOn);
+    mod.setPhaserRate(phRateParam->load());
+    mod.setPhaserMix(phMixParam->load() / 100.0f);
+    mod.setPhaserColour(phColourParam->load());
+
+    mod.setChorusOn(chOn);
+    mod.setChorusRate(chRateParam->load());
+    mod.setChorusDepth(chDepthParam->load());
+    mod.setChorusMix(chMixParam->load() / 100.0f);
+
+    mod.setParallel(fxParallelParam->load() > 0.5f);
   }
 
   // 6. Mojo
   {
-    // Drive derived from Amp Gain + Comp Input?
-    float compInDb = apvts.getRawParameterValue("compInput")->load();
-    float ampGainDb = apvts.getRawParameterValue("ampGain")->load();
-    float g01 = (ampGainDb + compInDb) / 24.0f;
-    dspChain.getMojo().setMojoDrive01(
-        juce::jlimit(0.0f, 1.0f, 0.20f + 0.80f * g01));
+    auto &mojo = dspChain.getMojo();
+    const bool mojoTargetActive =
+        (ampOnParam->load() > 0.5f) && (tubeOnParam->load() > 0.5f);
+
+    dspChain.setBypassed<7>(!mojoTargetActive);
+
+    if (mojoTargetActive) {
+      float g01 = (ampGainParam->load() + compInputParam->load()) / 24.0f;
+      mojo.setMojoDrive01(juce::jlimit(0.0f, 1.0f, 0.20f + 0.80f * g01));
+    }
   }
 
   // 7. CabSim
   {
     auto &cab = dspChain.getCabSim();
-    cab.setCabType((int)apvts.getRawParameterValue("cabType")->load());
-    cab.setMix(apvts.getRawParameterValue("irMix")->load() / 100.0f);
+    cab.setCabType((int)cabTypeParam->load());
+    cab.setMix(irMixParam->load() / 100.0f);
   }
 
   // 8. Output Gain + Master Mix
   {
-    float masterDb = apvts.getRawParameterValue("masterOut")->load();
-    float ampVolDb = apvts.getRawParameterValue("ampVolume")->load();
-    // Apply Amp Volume + Master Volume at the end stage
     auto &out = dspChain.getOutputGain();
-    out.setGainDecibels(masterDb + ampVolDb);
+    out.setGainDecibels(masterOutParam->load() + ampVolumeParam->load());
     out.setSafetyClipThreshold(0.99f);
 
-    out.setMonoMakerFreq(apvts.getRawParameterValue("monoMaker")->load());
-    bool mmOn = apvts.getRawParameterValue("monoMakerOn")->load() > 0.5f;
-    if (mmOn != lastMonoMakerOn) {
-      out.reset();
-      lastMonoMakerOn = mmOn;
-    }
+    out.setMonoMakerFreq(monoMakerParam->load());
+    bool mmOn = monoMakerOnParam->load() > 0.5f;
     out.setMonoMakerEnabled(mmOn);
-    out.setAutoGain(apvts.getRawParameterValue("autoGain")->load() > 0.5f);
+    out.setAutoGain(autoGainParam->load() > 0.5f);
   }
 
   // ===== PROCESS =====
@@ -473,14 +516,17 @@ juce::File FunkyMooseAudioProcessor::getPresetsFolder() {
 juce::StringArray FunkyMooseAudioProcessor::getPresetList() {
   juce::StringArray list;
   list.add("F:Default");
-  list.add("F:Birdland `s Pleasure");
-  list.add("F:James`s Soul");
-  list.add("F:King Slap");
-  list.add("F:Play the Chords");
-  list.add("F:Sledge the Hammer");
-  list.add("F:Synthish");
-  list.add("F:in the Name of PJ");
-  list.add("F:on the One");
+  list.add("F:Jaco Bridge");
+  list.add("F:Miller Slap");
+  list.add("F:Jamerson Warmth");
+  list.add("F:Palladino P-Bass");
+  list.add("F:Bootsy Power");
+  list.add("F:Mark King King");
+  list.add("F:Flea Aggression");
+  list.add("F:Geddy Grit");
+  list.add("F:Doom Moose");
+  list.add("F:Motown 15\"");
+  list.add("F:Prog Fusion");
 
   auto folder = getPresetsFolder();
   juce::Array<juce::File> files;
@@ -505,480 +551,185 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
       p->setValueNotifyingHost(val ? 1.0f : 0.0f);
   };
 
-  if (presetName == "Birdland `s Pleasure") {
-    setVal("ampBass", 8.046817779541016f);
-    setVal("ampGain", 12.35122776031494f);
-    setVal("ampMid", 8.056770324707031f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 3.675234317779541f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 33.86650466918945f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 0.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
-    setVal("compOn", 1.0f);
-    setVal("compRatio", 1.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -21.31538200378418f);
-    setVal("envAttack", 0.25f);
-    setVal("envDecay", 0.3499999940395355f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 65.0f);
-    setVal("masterOut", 0.2981683015823364f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 51.86192321777344f);
-    setVal("octModern", 1.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.550000011920929f);
-    setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
-    setVal("phaserOn", 0.0f);
-    setVal("slap", 1.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 1.0f);
-    setVal("tubeOn", 1.0f);
-    setVal("cabType", 1.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 0.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 0.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 1.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
-    return;
-  }
-
   if (presetName == "Default") {
-    setVal("ampBass", 6.526051998138428f);
-    setVal("ampGain", 8.781200408935547f);
-    setVal("ampMid", -1.478480100631714f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 5.612707614898682f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.550000011920929f);
-    setVal("chMix", 0.0f);
-    setVal("chRate", 0.3499999940395355f);
-    setVal("chorusOn", 0.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
+    // Neutral starting point
+    setVal("ampGain", 8.0f);
+    setVal("ampBass", 0.0f);
+    setVal("ampMid", 0.0f);
+    setVal("ampTreble", 0.0f);
     setVal("compOn", 1.0f);
-    setVal("compRatio", 0.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -6.69426441192627f);
-    setVal("envAttack", 0.25f);
-    setVal("envDecay", 0.3499999940395355f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 65.0f);
-    setVal("masterOut", -4.289459228515625f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 51.86192321777344f);
-    setVal("octModern", 1.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.550000011920929f);
-    setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
-    setVal("phaserOn", 0.0f);
-    setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 0.0f);
+    setVal("compThresh", -18.0f);
+    setVal("compRatio", 0.0f); // 4:1
+    setVal("cabType", 0.0f);   // 4x12
+    setVal("masterOut", 0.0f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Jaco Bridge") {
+    setVal("ampGain", 11.0f); // Moderate drive for that growl
+    setVal("ampBass", -3.0f);
+    setVal("ampMid", 12.0f);
+    setVal("ampTreble", 2.0f);
     setVal("tubeOn", 1.0f);
-    setVal("cabType", 0.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 0.0f);
-    setVal("monoMaker", 218.8702545166016f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 0.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 0.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
-    return;
-  }
-
-  if (presetName == "James`s Soul") {
-    setVal("ampBass", 6.709151744842529f);
-    setVal("ampGain", 8.781200408935547f);
-    setVal("ampMid", 0.6908397674560547f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", -7.996444225311279f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 33.86650466918945f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 0.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
     setVal("compOn", 1.0f);
-    setVal("compRatio", 0.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -15.04234313964844f);
-    setVal("envAttack", 0.25f);
-    setVal("envDecay", 0.3499999940395355f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 65.0f);
-    setVal("masterOut", -4.289459228515625f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 51.86192321777344f);
-    setVal("octModern", 1.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.550000011920929f);
-    setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
-    setVal("phaserOn", 0.0f);
-    setVal("slap", 1.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 0.0f);
-    setVal("tubeOn", 1.0f);
-    setVal("cabType", 2.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 0.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 0.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 0.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
-    return;
-  }
-
-  if (presetName == "King Slap") {
-    setVal("ampBass", -0.2784998416900635f);
-    setVal("ampGain", 8.781200408935547f);
-    setVal("ampMid", -4.831964492797852f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 12.0f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 33.86650466918945f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 1.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
-    setVal("compOn", 1.0f);
+    setVal("compThresh", -22.0f);
     setVal("compRatio", 1.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -15.04234313964844f);
-    setVal("envAttack", 0.25f);
-    setVal("envDecay", 0.3499999940395355f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 65.0f);
-    setVal("masterOut", -4.289459228515625f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 51.86192321777344f);
-    setVal("octModern", 1.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.550000011920929f);
-    setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
-    setVal("phaserOn", 0.0f);
-    setVal("slap", 1.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 0.0f);
-    setVal("tubeOn", 1.0f);
-    setVal("cabType", 0.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 0.0f);
-    setVal("monoMaker", 218.8702545166016f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 0.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 0.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
+    setVal("cabType", 1.0f); // 4x10
+    setVal("masterOut", 0.0f);
+    setVal("ampVolume", 0.0f);
     return;
   }
 
-  if (presetName == "Play the Chords") {
-    setVal("ampBass", -4.182948589324951f);
-    setVal("ampGain", 12.35122776031494f);
-    setVal("ampMid", 10.17400932312012f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 12.0f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 84.42182922363281f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 1.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
-    setVal("compOn", 1.0f);
-    setVal("compRatio", 1.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -21.31538200378418f);
-    setVal("envAttack", 0.1865661293268204f);
-    setVal("envDecay", 0.3568983972072601f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 100.0f);
-    setVal("masterOut", -4.726724624633789f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 14.58043003082275f);
-    setVal("octModern", 0.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.5108248591423035f);
-    setVal("phMix", 84.7347640991211f);
-    setVal("phRate", 0.08680211007595062f);
-    setVal("phaserOn", 1.0f);
-    setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 0.0f);
-    setVal("tubeOn", 0.0f);
-    setVal("cabType", 1.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 1.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 1.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 1.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
-    return;
-  }
-
-  if (presetName == "Sledge the Hammer") {
-    setVal("ampBass", 2.581031799316406f);
-    setVal("ampGain", 12.35122776031494f);
-    setVal("ampMid", 1.432588577270508f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 6.362621784210205f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 33.86650466918945f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 1.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
-    setVal("compOn", 1.0f);
-    setVal("compRatio", 1.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -21.31538200378418f);
-    setVal("envAttack", 0.25f);
-    setVal("envDecay", 0.3499999940395355f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 65.0f);
-    setVal("masterOut", 0.2981683015823364f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 51.86192321777344f);
-    setVal("octModern", 1.0f);
-    setVal("octOn", 1.0f);
-    setVal("phColour", 0.550000011920929f);
-    setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
-    setVal("phaserOn", 0.0f);
+  if (presetName == "Miller Slap") {
+    setVal("ampGain", 8.0f);
+    setVal("ampBass", 7.0f);
+    setVal("ampMid", -8.0f);
+    setVal("ampTreble", 10.0f);
     setVal("slap", 1.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
-    setVal("tubeOn", 1.0f);
-    setVal("cabType", 1.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 1.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 0.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 1.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
-    return;
-  }
-
-  if (presetName == "Synthish") {
-    setVal("ampBass", 2.581031799316406f);
-    setVal("ampGain", 12.35122776031494f);
-    setVal("ampMid", 8.117626190185547f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 12.0f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 14.87058067321777f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 1.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
     setVal("compOn", 1.0f);
-    setVal("compRatio", 1.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -21.31538200378418f);
-    setVal("envAttack", 0.1865661293268204f);
-    setVal("envDecay", 0.3568983972072601f);
-    setVal("envOn", 1.0f);
-    setVal("envRange", 100.0f);
-    setVal("masterOut", -4.726724624633789f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 14.58043003082275f);
-    setVal("octModern", 0.0f);
-    setVal("octOn", 1.0f);
-    setVal("phColour", 0.5108248591423035f);
-    setVal("phMix", 49.02029800415039f);
-    setVal("phRate", 0.08680211007595062f);
-    setVal("phaserOn", 1.0f);
-    setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 0.0f);
-    setVal("tubeOn", 1.0f);
-    setVal("cabType", 1.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 1.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 1.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 1.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
-    return;
-  }
-
-  if (presetName == "in the Name of PJ") {
-    setVal("ampBass", 3.449965953826904f);
-    setVal("ampGain", 24.0f);
-    setVal("ampMid", 7.721807956695557f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 3.353964328765869f);
-    setVal("ampVolume", 6.0f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 84.42182922363281f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 0.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", 0.8168506622314453f);
-    setVal("compMakeup", 4.130940437316895f);
-    setVal("compOn", 1.0f);
+    setVal("compThresh", -20.0f);
     setVal("compRatio", 2.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -29.32355117797852f);
-    setVal("envAttack", 0.1865661293268204f);
-    setVal("envDecay", 0.3568983972072601f);
-    setVal("envOn", 0.0f);
-    setVal("envRange", 100.0f);
-    setVal("masterOut", -25.07347869873047f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 14.58043003082275f);
-    setVal("octModern", 0.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.5108248591423035f);
-    setVal("phMix", 84.7347640991211f);
-    setVal("phRate", 0.08680211007595062f);
-    setVal("phaserOn", 0.0f);
-    setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 1.0f);
-    setVal("tubeOn", 0.0f);
-    setVal("cabType", 2.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
-    setVal("fxParallel", 1.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
-    setVal("monoMakerOn", 1.0f);
-    setVal("ampAutoGain", 1.0f);
-    setVal("compAutoMakeup", 1.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
+    setVal("cabType", 1.0f);
+    setVal("masterOut", -1.0f);
+    setVal("ampVolume", 0.0f);
     return;
   }
 
-  if (presetName == "on the One") {
-    setVal("ampBass", 2.581031799316406f);
-    setVal("ampGain", 12.35122776031494f);
-    setVal("ampMid", 8.117626190185547f);
-    setVal("ampOn", 1.0f);
-    setVal("ampTreble", 12.0f);
-    setVal("ampVolume", -1.000000476837158f);
-    setVal("chDepth", 0.2512639164924622f);
-    setVal("chMix", 33.86650466918945f);
-    setVal("chRate", 0.1234697178006172f);
-    setVal("chorusOn", 0.0f);
-    setVal("compAttack", 1.0f);
-    setVal("compInput", -5.961386203765869f);
-    setVal("compMakeup", 4.130940437316895f);
-    setVal("compOn", 1.0f);
-    setVal("compRatio", 1.0f);
-    setVal("compRelease", 106.6371078491211f);
-    setVal("compThresh", -21.31538200378418f);
-    setVal("envAttack", 0.1865661293268204f);
-    setVal("envDecay", 0.3568983972072601f);
-    setVal("envOn", 1.0f);
-    setVal("envRange", 100.0f);
-    setVal("masterOut", 0.2981683015823364f);
-    setVal("oct1", 40.0f);
-    setVal("oct2", 40.0f);
-    setVal("octMix", 51.86192321777344f);
-    setVal("octModern", 1.0f);
-    setVal("octOn", 0.0f);
-    setVal("phColour", 0.550000011920929f);
-    setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
-    setVal("phaserOn", 0.0f);
-    setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
-    setVal("punch", 0.0f);
+  if (presetName == "Jamerson Warmth") {
+    setVal("ampGain", 4.0f); // Clean
+    setVal("ampBass", 5.0f);
+    setVal("ampMid", 2.0f);
+    setVal("ampTreble", -12.0f);
     setVal("tubeOn", 1.0f);
-    setVal("cabType", 0.0f);
-    setVal("masterMix", 100.0f);
-    setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
+    setVal("compOn", 1.0f);
+    setVal("compThresh", -14.0f);
+    setVal("compRatio", 0.0f);
+    setVal("cabType", 2.0f); // 15"
+    setVal("masterOut", 3.0f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Palladino P-Bass") {
+    setVal("ampGain", 6.0f);
+    setVal("ampBass", 4.0f);
+    setVal("ampMid", 2.0f);
+    setVal("ampTreble", -3.0f);
+    setVal("compOn", 1.0f);
+    setVal("compThresh", -18.0f);
+    setVal("compRatio", 0.0f);
+    setVal("compAttack", 50.0f);
+    setVal("compRelease", 250.0f);
+    setVal("cabType", 2.0f);
+    setVal("masterOut", 2.0f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Bootsy Power") {
+    setVal("ampGain", 12.0f);
+    setVal("envOn", 1.0f);
+    setVal("envRange", 85.0f);
+    setVal("envAttack", 25.0f);
+    setVal("phaserOn", 1.0f);
+    setVal("phMix", 50.0f);
+    setVal("phRate", 0.2f);
     setVal("fxParallel", 1.0f);
-    setVal("monoMaker", 207.9331970214844f);
-    setVal("lowCutOn", 1.0f);
+    setVal("cabType", 1.0f);
+    setVal("masterOut", -1.0f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Mark King King") {
+    setVal("ampGain", 10.0f);
+    setVal("ampBass", 5.0f);
+    setVal("ampMid", -5.0f);
+    setVal("ampTreble", 12.0f);
+    setVal("compOn", 1.0f);
+    setVal("compThresh", -25.0f);
+    setVal("compRatio", 3.0f);
+    setVal("compAttack", 1.0f);
+    setVal("chorusOn", 1.0f);
+    setVal("chMix", 25.0f);
+    setVal("cabType", 1.0f);
+    setVal("masterOut", -2.5f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Flea Aggression") {
+    setVal("ampGain", 20.0f); // Heavy drive (Mojo kicks in)
+    setVal("ampBass", 6.0f);
+    setVal("ampMid", 2.0f);
+    setVal("ampTreble", 9.0f);
+    setVal("tubeOn", 1.0f);
+    setVal("punch", 1.0f);
+    setVal("cabType", 0.0f); // 4x12
+    setVal("masterOut", -7.0f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Geddy Grit") {
+    setVal("ampGain", 24.0f); // Max Grit
+    setVal("ampBass", 3.0f);
+    setVal("ampMid", 7.0f);
+    setVal("ampTreble", 7.0f);
+    setVal("tubeOn", 1.0f);
     setVal("monoMakerOn", 1.0f);
-    setVal("ampAutoGain", 1.0f);
+    setVal("monoMaker", 220.0f); // Keeps low end solid
+    setVal("cabType", 0.0f);
+    setVal("masterOut", -12.0f);
+    setVal("ampVolume", 5.0f);
+    return;
+  }
+
+  if (presetName == "Doom Moose") {
+    setVal("ampGain", 24.0f);
+    setVal("ampBass", 8.0f);
+    setVal("ampMid", 4.0f);
+    setVal("ampTreble", -2.0f);
+    setVal("octOn", 1.0f);
+    setVal("oct1", 70.0f);
+    setVal("octMix", 40.0f); // More sub!
+    setVal("tubeOn", 1.0f);
+    setVal("cabType", 2.0f); // 15"
+    setVal("masterOut", -10.0f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Motown 15\"") {
+    setVal("ampGain", 3.0f);
+    setVal("ampBass", 7.0f);
+    setVal("ampMid", 2.0f);
+    setVal("ampTreble", -15.0f);
+    setVal("tubeOn", 1.0f);
+    setVal("compOn", 1.0f);
+    setVal("compThresh", -10.0f);
+    setVal("cabType", 2.0f);
+    setVal("masterOut", 3.5f);
+    setVal("ampVolume", 0.0f);
+    return;
+  }
+
+  if (presetName == "Prog Fusion") {
+    setVal("ampGain", 10.0f);
+    setVal("ampBass", 3.0f);
+    setVal("ampMid", 5.0f);
+    setVal("ampTreble", 6.0f);
+    setVal("compOn", 1.0f);
+    setVal("compThresh", -22.0f);
     setVal("compAutoMakeup", 1.0f);
-    setVal("autoGate", 1.0f);
-    setVal("tunerOn", 0.0f);
-    setVal("gateHoldMs", 90.0f);
-    setVal("gateThresh", -66.30000305175781f);
+    setVal("chOn", 1.0f);
+    setVal("chMix", 18.0f);
+    setVal("fxParallel", 1.0f);
+    setVal("cabType", 1.0f);
+    setVal("masterOut", -1.0f);
+    setVal("ampVolume", 0.0f);
     return;
   }
 

@@ -25,12 +25,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: juce_install
-          key: juce-8.0.6-macos
+          key: juce-8.0.10-macos
 
       - name: Download & Install JUCE
         if: steps.cache-juce.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git juce_src
+          git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git juce_src
           cmake -S juce_src -B juce_build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/juce_install"
@@ -79,12 +79,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: juce_install
-          key: juce-8.0.6-windows
+          key: juce-8.0.10-windows
 
       - name: Download & Install JUCE
         if: steps.cache-juce.outputs.cache-hit != 'true'
         run: |
-          git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git juce_src
+          git clone --depth 1 --branch 8.0.10 https://github.com/juce-framework/JUCE.git juce_src
           cmake -S juce_src -B juce_build `
             -DCMAKE_BUILD_TYPE=Release `
             -DCMAKE_INSTALL_PREFIX="${env:GITHUB_WORKSPACE}/juce_install"

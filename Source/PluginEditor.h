@@ -30,15 +30,15 @@ private:
     void setLevel(float lin) {
       level = juce::jlimit(0.0f, 1.0f, lin);
 
-      // Peak hold (approx. 30 Hz updates from editor timer)
+      // Peak hold (reduced for snappier feedback)
       if (level >= peak) {
         peak = level;
-        peakHoldFrames = 30; // ~1s
+        peakHoldFrames = 12; // ~0.4s @ 30Hz
       } else {
         if (peakHoldFrames > 0)
           --peakHoldFrames;
         else
-          peak *= 0.998f;
+          peak *= 0.94f; // Much faster decay
       }
 
       repaint();
@@ -264,7 +264,8 @@ private:
   juce::ToggleButton punchButton{"PUNCH"};
   juce::ToggleButton compAutoMakeupToggle{"AUTO"};
   juce::ToggleButton octOn, envOn, phaserOn, chorusOn,
-      octModernToggle{"MODERN"}, fxParallelToggle{"PARALLEL"}; // New
+      fxParallelToggle{"PARALLEL"}; // New
+  
   juce::ToggleButton masterOn;
 
   // Preset & Skin UI
@@ -347,7 +348,7 @@ private:
       compAtkAtt, compRelAtt;
   std::unique_ptr<ComboAttachment> compRatAtt;
 
-  std::unique_ptr<ButtonAttachment> octOnAtt, octModernAtt;
+  std::unique_ptr<ButtonAttachment> octOnAtt;
   std::unique_ptr<SliderAttachment> oct1Att, oct2Att, octMixAtt;
 
   std::unique_ptr<ButtonAttachment> envOnAtt;

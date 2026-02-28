@@ -13,9 +13,17 @@ public:
 
   void prepare(double sampleRate) {
     sr = sampleRate;
-    frameSize = (sr < 48000.0) ? 4096 : 8192; // Adaptive Frame Size
+    // Increased frame size for better Low B stability (approx 185ms @ 44.1kHz)
+    frameSize = 8192;
     yin.prepare(sr, frameSize);
     temp.resize((size_t)frameSize, 0.0f);
+
+    // Low pass filter at 350Hz to clean up harmonics for the tuner
+    const float lpfCutoff = 350.0f;
+    lpfCoeff = 1.0f - std::exp(-2.0f * juce::MathConstants<float>::pi *
+                               lpfCutoff / (float)sr);
+    lpfState = 0.0f;
+
     startTimerHz(25);
   }
 
@@ -24,15 +32,12 @@ public:
   void paint(juce::Graphics &g) override {
     auto r = getLocalBounds().toFloat();
 
-    // 1. Housing (Matching VU Meter Style)
     g.setColour(juce::Colour(0xff151515));
     g.fillRoundedRectangle(r, 4.0f);
 
-    // Inner shadow
     g.setColour(juce::Colours::black.withAlpha(0.6f));
     g.drawRoundedRectangle(r, 4.0f, 1.5f);
 
-    // Glass reflection
     juce::ColourGradient glassG(juce::Colours::white.withAlpha(0.05f), r.getX(),
                                 r.getY(), juce::Colours::transparentWhite,
                                 r.getX(), r.getBottom(), false);
@@ -47,7 +52,6 @@ public:
       return;
     }
 
-    // 2. Note Display (Left side)
     auto noteArea = r.removeFromLeft(60.0f);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions(26.0f, juce::Font::bold));
@@ -60,10 +64,8 @@ public:
                noteArea.withBottom(r.getBottom() - 4.0f),
                juce::Justification::centredBottom);
 
-    // 3. Cents Meter (Rest of the area)
     auto meterArea = r.reduced(10.0f, 6.0f);
 
-    // Draw background ticks
     g.setColour(juce::Colours::white.withAlpha(0.1f));
     const int numTicks = 21;
     for (int i = 0; i < numTicks; ++i) {
@@ -74,31 +76,22 @@ public:
                  1.0f);
     }
 
-    // Center Lock LED (Green when |cents| < 3)
     float centerX = meterArea.getCentreX();
     float centerY = meterArea.getCentreY();
     bool inTune = std::abs(note.cents) <= 3;
 
     if (inTune) {
-      // Outer glow
       g.setColour(juce::Colour(0xff00ff00).withAlpha(0.3f));
       g.fillEllipse(centerX - 16, centerY - 16, 32, 32);
-
-      // Main LED body
       g.setColour(juce::Colour(0xff00ff00));
       g.fillEllipse(centerX - 10, centerY - 10, 20, 20);
-
-      // Highlight (LED shine)
       g.setColour(juce::Colour(0xffffffff).withAlpha(0.6f));
       g.fillEllipse(centerX - 6, centerY - 8, 8, 8);
     }
 
-    // The Needle/Indicator
     float needleX = juce::jmap((float)note.cents, -50.0f, 50.0f,
                                meterArea.getX(), meterArea.getRight());
-
-    // Color gradient based on cents
-    juce::Colour needleCol = juce::Colour(0xff00ffff); // Cyan (In Tune)
+    juce::Colour needleCol = juce::Colour(0xff00ffff);
     if (std::abs(note.cents) > 3) {
       float factor = std::abs((float)note.cents) / 50.0f;
       needleCol = needleCol.interpolatedWith(juce::Colour(0xffff9900), factor);
@@ -106,12 +99,9 @@ public:
 
     g.setColour(needleCol);
     g.drawLine(needleX, meterArea.getY(), needleX, meterArea.getBottom(), 3.0f);
-
-    // Glow for the needle
     g.setColour(needleCol.withAlpha(0.4f));
     g.drawLine(needleX, meterArea.getY(), needleX, meterArea.getBottom(), 6.0f);
 
-    // Cents Text
     g.setFont(juce::FontOptions(10.0f));
     g.setColour(needleCol.withAlpha(0.7f));
     g.drawText(juce::String(note.cents) + " CT",
@@ -124,22 +114,25 @@ private:
     if (!tunerOn.load(std::memory_order_relaxed))
       return;
 
-    // 1. CPU Guard: Nur weiter, wenn wirklich neue Daten da sind
     if (fifo.getNumReady() < frameSize)
       return;
 
-    // 2. Daten aus der FIFO holen (wir holen das aktuellste Fenster)
     while (fifo.getNumReady() >= frameSize)
       fifo.pull(temp.data(), frameSize);
 
-    // 3. Level Gate: RMS berechnen um Flackern bei Stille/Rauschen zu vermeiden
-    // (-60 dB)
+    // Apply 350Hz LPF to clean fundamental for better bass detection
+    for (int i = 0; i < frameSize; ++i) {
+      lpfState += lpfCoeff * (temp[i] - lpfState);
+      temp[i] = lpfState;
+    }
+
     float sumSquares = 0.0f;
     for (int i = 0; i < frameSize; ++i)
       sumSquares += temp[i] * temp[i];
 
     float rms = std::sqrt(sumSquares / (float)frameSize);
-    const float threshold = juce::Decibels::decibelsToGain(-60.0f);
+    const float threshold = juce::Decibels::decibelsToGain(
+        -65.0f); // More sensitive for dying notes
 
     if (rms < threshold) {
       if (note.valid) {
@@ -149,14 +142,13 @@ private:
       return;
     }
 
-    // 4. Analyse starten (Yin Algorithmus)
     auto res = yin.process(temp.data(), frameSize);
     if (res.valid) {
-      // Mini Smoothing: stabilisiert die Nadel bei leichten Schwankungen
       if (smoothedFreq <= 0.0f)
         smoothedFreq = res.frequencyHz;
       else
-        smoothedFreq = 0.8f * smoothedFreq + 0.2f * res.frequencyHz;
+        smoothedFreq =
+            0.7f * smoothedFreq + 0.3f * res.frequencyHz; // Faster response
 
       note = freqToNote(smoothedFreq);
     } else {
@@ -171,10 +163,14 @@ private:
   std::atomic<bool> &tunerOn;
 
   double sr = 44100.0;
-  int frameSize = 4096;
+  int frameSize = 8192;
 
   YinPitch yin;
   std::vector<float> temp;
   TunerNote note;
   float smoothedFreq = 0.0f;
+
+  // LPF State
+  float lpfCoeff{0.1f};
+  float lpfState{0.0f};
 };

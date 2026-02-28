@@ -50,7 +50,7 @@ https://github.com/blubass/FunkyMooseAmp/issues
 -   No background services
 
 Standalone may request microphone/audio permission on macOS because it
-processes live input.
+processes live audio.
 
 ------------------------------------------------------------------------
 

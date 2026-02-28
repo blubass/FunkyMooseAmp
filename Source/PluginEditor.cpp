@@ -163,10 +163,9 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   // Module toggles (tiny lamps)
   for (auto *t : {&compOn, &octOn, &envOn, &phaserOn, &chorusOn, &masterOn,
-                  &octModernToggle, &fxParallelToggle}) {
+                  &fxParallelToggle}) {
     t->setButtonText("");
-    t->setToggleState(t == &octModernToggle || t == &fxParallelToggle ? false
-                                                                      : true,
+    t->setToggleState(t == &fxParallelToggle ? false : true,
                       juce::dontSendNotification);
     content.addAndMakeVisible(*t);
   }
@@ -324,8 +323,8 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   auto &ts = processor.apvts;
 
-  // Hardcoded "Bass Strategy" (Vintage) Look
-  const int skinIndex = 3;
+  // Default Skin: 0 (Classic / Ampeg Black)
+  const int skinIndex = 0;
 
   currentPalette = Skins::getPalette(skinIndex);
 
@@ -386,10 +385,10 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   // FX
   octOnAtt = std::make_unique<BA>(ts, "octOn", octOn);
+  // octModern attachment removed
   oct1Att = std::make_unique<SA>(ts, "oct1", oct1Knob);
   oct2Att = std::make_unique<SA>(ts, "oct2", oct2Knob);
   octMixAtt = std::make_unique<SA>(ts, "octMix", octMixKnob);
-  octModernAtt = std::make_unique<BA>(ts, "octModern", octModernToggle);
 
   envOnAtt = std::make_unique<BA>(ts, "envOn", envOn);
   envAtkAtt = std::make_unique<SA>(ts, "envAttack", envAtkKnob);
@@ -426,7 +425,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
                   &chDepthKnob,   &chMixKnob,   &outKnob,        &mixKnob,
                   &monoMakerKnob, &irMixKnob}) {
     k->textFromValueFunction = [](double value) {
-      return juce::String(value, 2);
+      return juce::String(value, 1);
     };
   }
 
@@ -470,26 +469,88 @@ void FunkyMooseAudioProcessorEditor::ensureCachedTextures(int skinIndex) {
 
     juce::Random rng(42);
 
-    // Layer 1: Heavy pitting/corrosion (Dark)
-    ig.setColour(juce::Colours::black.withAlpha(0.25f));
-    for (int i = 0; i < 2000; ++i) {
+    // --- ROAD WORN: GRIME & DIRT CLOUDS ---
+    for (int i = 0; i < 400; ++i) {
       float y = plate.getY() + rng.nextFloat() * plate.getHeight();
       float x = plate.getX() + rng.nextFloat() * plate.getWidth();
-      float w = 5.0f + rng.nextFloat() * 40.0f;
-      float h = 1.0f + rng.nextFloat() * 2.0f;
+      float s = 40.0f + rng.nextFloat() * 200.0f;
+      float a = 0.05f + rng.nextFloat() * 0.12f;
+      ig.setColour(
+          juce::Colour(0xff15100a).withAlpha(a)); // Dark brown/black grime
+      ig.fillEllipse(x - s / 2, y - s / 2, s, s);
+    }
+
+    // Layer 1: Heavy pitting/corrosion & Gouges (Dark)
+    ig.setColour(juce::Colours::black.withAlpha(0.45f)); // Darker
+    for (int i = 0; i < 5000; ++i) {                     // Way more
+      float y = plate.getY() + rng.nextFloat() * plate.getHeight();
+      float x = plate.getX() + rng.nextFloat() * plate.getWidth();
+      float w = 2.0f + rng.nextFloat() * 40.0f;
+      float h = 1.0f + rng.nextFloat() * 2.5f;
       ig.fillRect(x, y, w, h);
     }
 
-    // Layer 2: Brass/Gold Scratches (Highlights)
-    ig.setColour(juce::Colour::fromRGB(255, 200, 100).withAlpha(0.08f));
-    for (int i = 0; i < 1000; ++i) {
+    // Deep Gouges (with highlight edge)
+    for (int i = 0; i < 300; ++i) {
       float y = plate.getY() + rng.nextFloat() * plate.getHeight();
       float x = plate.getX() + rng.nextFloat() * plate.getWidth();
-      float w = 5.0f + rng.nextFloat() * 30.0f;
+      float w = 15.0f + rng.nextFloat() * 90.0f;
+      float h = 1.5f + rng.nextFloat() * 2.0f;
+
+      ig.setColour(juce::Colours::black.withAlpha(0.7f));
+      ig.fillRect(x, y, w, h);
+
+      ig.setColour(juce::Colours::white.withAlpha(0.12f));
+      ig.fillRect(x, y + h, w, 0.8f); // Catch light inside the gouge
+    }
+
+    // Layer 2: Brass/Gold Scratches (Highlights)
+    ig.setColour(
+        juce::Colour::fromRGB(255, 200, 100).withAlpha(0.15f)); // Brighter
+    for (int i = 0; i < 3500; ++i) {                            // Way more
+      float y = plate.getY() + rng.nextFloat() * plate.getHeight();
+      float x = plate.getX() + rng.nextFloat() * plate.getWidth();
+      float w = 5.0f + rng.nextFloat() * 40.0f;
       float h = 0.8f;
       ig.fillRect(x, y, w, h);
+    } // Close the 3500 loop here
+
+    // --- TAPE RESIDUE AND SCRATCHY HAIRS ---
+    // --- TAPE RESIDUE AND SCRATCHY HAIRS ---
+    ig.setColour(
+        juce::Colour(0xffe0ead5)
+            .withAlpha(0.40f));   // Dull whitish residue - even higher opacity
+    for (int i = 0; i < 4; ++i) { // 4 tape marks
+      float tx = plate.getX() + rng.nextFloat() * (plate.getWidth() - 100);
+      float ty = plate.getY() + rng.nextFloat() * (plate.getHeight() - 40);
+      float tw = 60.0f + rng.nextFloat() * 60.0f;
+      float th = 20.0f + rng.nextFloat() * 15.0f;
+
+      juce::Path tapeBlock;
+      tapeBlock.addRectangle(tx, ty, tw, th);
+      tapeBlock.applyTransform(juce::AffineTransform::rotation(
+          rng.nextFloat() * 0.4f - 0.2f, tx + tw / 2, ty + th / 2));
+      ig.fillPath(tapeBlock);
+
+      // glue edges
+      ig.setColour(juce::Colour(0xff202020)
+                       .withAlpha(0.60f)); // Dark grey sticky edge (no rust)
+      ig.strokePath(tapeBlock, juce::PathStrokeType(2.5f));
     }
-  }
+
+    // --- HEAVY BORDER AMBIENT OCCLUSION (Dust/Nicotine build up near tolex)
+    // ---
+    for (int layer = 0; layer < 5; ++layer) {
+      float inset = layer * 4.0f;
+      ig.setColour(
+          juce::Colour(0xff151515)
+              .withAlpha(
+                  0.85f -
+                  layer *
+                      0.12f)); // Pure dark grey/black grime instead of brown
+      ig.drawRect(plate.reduced(inset), 8.0f);
+    }
+  } // Close the cachedPlateTexture block
 
   // Skin overlays (procedural) - only generate for the special skins
   if (skinIndex == 4 || skinIndex == 5) {
@@ -578,30 +639,67 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   // ===== Brushed Metal Base =====
   auto area = juce::Rectangle<float>(0, 0, (float)designW, (float)designH);
 
-  // dunkle Grundfarbe
-  g.fillAll(juce::Colour::fromRGB(34, 32, 30));
+  // 0. PHYSICAL OUTER TOLEX ENCLOSURE (The "Amp Case")
+  auto outerCase = area;
+  g.setColour(juce::Colour(0xff080808));
+  g.fillRect(outerCase);
 
-  // leichter vertikaler Brush-Gradient
-  juce::ColourGradient metalGrad(juce::Colour::fromRGB(60, 58, 55), 0,
-                                 area.getY(), juce::Colour::fromRGB(28, 26, 24),
-                                 0, area.getBottom(), false);
+  // Tolex Texture (Rough Leather feel)
+  juce::Random rTolex(42);
+  g.setColour(juce::Colours::white.withAlpha(0.015f));
+  for (int i = 0; i < 2000; ++i) {
+    g.fillRect(rTolex.nextFloat() * designW, rTolex.nextFloat() * designH, 1.5f,
+               1.0f);
+  }
+
+  // Deep Corner Vignette for enclosure
+  juce::ColourGradient caseV(juce::Colours::transparentBlack, area.getCentreX(),
+                             area.getCentreY(),
+                             juce::Colours::black.withAlpha(0.8f), 0, 0, true);
+  g.setGradientFill(caseV);
+  g.fillRect(area);
+
+  // 1. RECESSED PLATE AREA
+  auto plateArea = area.reduced(15.0f);
+  g.setColour(currentPalette.background);
+  g.fillRect(plateArea);
+
+  // Inner Plate Bevel (Shadow inside the tolex)
+  for (float i = 15.0f; i < 22.0f; i += 1.0f) {
+    g.setColour(juce::Colours::black.withAlpha(0.6f / (i - 14.0f)));
+    g.drawRect(area.reduced(i), 1.0f);
+  }
+
+  // Metal Texture & Gradients (ONLY ON PLATE)
+  juce::ColourGradient metalGrad(
+      currentPalette.background.brighter(0.1f), 0, plateArea.getY(),
+      currentPalette.background.darker(0.1f), 0, plateArea.getBottom(), false);
 
   g.setGradientFill(metalGrad);
-  g.fillRect(area);
+  g.fillRect(plateArea);
 
-  // leichte Vignette für Tiefe
-  juce::ColourGradient vignette(
-      juce::Colours::transparentBlack, area.getCentreX(), area.getCentreY(),
-      juce::Colours::black.withAlpha(0.6f), area.getX(), area.getY(), true);
+  juce::ColourGradient vignette(juce::Colours::transparentBlack,
+                                plateArea.getCentreX(), plateArea.getCentreY(),
+                                juce::Colours::black.withAlpha(0.5f),
+                                plateArea.getX(), plateArea.getY(), true);
 
   g.setGradientFill(vignette);
-  g.fillRect(area);
+  g.fillRect(plateArea);
 
-  // Subtle noise
+  // Subtle noise & Studio Scanline
   g.saveState();
-  g.setColour(juce::Colours::white.withAlpha(0.03f));
-  for (int i = 0; i < designH; i += 3)
+  g.setColour(juce::Colours::white.withAlpha(0.04f));
+  for (int i = 0; i < designH; i += 2)
     g.fillRect(0, i, designW, 1);
+
+  // GLOBAL LIGHTING SWIPE (Studio Beam)
+  juce::Path swipe;
+  swipe.addRectangle(0, 0, designW, designH);
+  juce::ColourGradient beam(juce::Colours::white.withAlpha(0.06f), 0, 0,
+                            juce::Colours::transparentWhite, designW * 0.4f,
+                            designH * 0.4f, true);
+  g.setGradientFill(beam);
+  g.fillPath(swipe);
   g.restoreState();
 
   const auto L = getLayout();
@@ -611,17 +709,16 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.saveState();
     auto plate = L.plate;
 
-    // 1. Base Metal: VINTAGE INDUSTRIAL BRONZE (Dark & Warm)
-    // Deep, heavy dark metal look
-    juce::Colour c1 = juce::Colour::fromRGB(55, 45, 40); // Dark Bronze/Brown
-    juce::Colour c2 = juce::Colour::fromRGB(25, 20, 18); // Deep Oxide
+    // 1. Base Metal: Physical Plate (Now dynamic via Palette)
+    juce::Colour c1 = currentPalette.plate.brighter(0.1f);
+    juce::Colour c2 = currentPalette.plate.darker(0.1f);
 
     juce::ColourGradient cg(c1, plate.getX(), plate.getY(), c2,
                             plate.getRight(), plate.getBottom(), false);
 
-    // Warm rich highlights (Copper/Gold tint)
-    cg.addColour(0.3f, juce::Colour::fromRGB(80, 65, 55));
-    cg.addColour(0.7f, juce::Colour::fromRGB(45, 35, 30));
+    // Dynamic highlights based on palette
+    cg.addColour(0.3f, currentPalette.plate.brighter(0.15f));
+    cg.addColour(0.7f, currentPalette.plate.darker(0.05f));
 
     g.setGradientFill(cg);
     g.fillRoundedRectangle(plate, currentPalette.cornerRadius);
@@ -639,16 +736,28 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       ensureCachedTextures(skinIdx);
 
       if (!cachedPlateTexture.isNull()) {
-        // Draw cached overlay into the plate area
-        g.drawImage(cachedPlateTexture, plate.getX(), plate.getY(),
-                    plate.getWidth(), plate.getHeight(), 0, 0,
-                    cachedPlateTexture.getWidth(),
-                    cachedPlateTexture.getHeight(), false);
+        // Draw cached overlay (which is full-screen size)
+        g.drawImageAt(cachedPlateTexture, 0, 0, false);
       }
     }
 
     // 3. 3D Beveled Edge - Crisp Industrial
     float cr = currentPalette.cornerRadius;
+
+    // INDUSTRIAL RIVETS (Extra Detail)
+    auto drawRivet = [&](float rx, float ry) {
+      float rs = 6.0f;
+      juce::Rectangle<float> rr(rx - rs * 0.5f, ry - rs * 0.5f, rs, rs);
+      g.setColour(juce::Colours::black.withAlpha(0.8f));
+      g.fillEllipse(rr.translated(1, 1));
+      juce::ColourGradient rg(juce::Colours::white.withAlpha(0.4f), rx, ry,
+                              juce::Colours::black, rx + rs, ry + rs, true);
+      g.setGradientFill(rg);
+      g.fillEllipse(rr);
+    };
+    float rivM = 10.0f;
+    drawRivet(plate.getX() + rivM, plate.getY() + plate.getHeight() * 0.5f);
+    drawRivet(plate.getRight() - rivM, plate.getY() + plate.getHeight() * 0.5f);
 
     // Top Highlight (Sharp Chrome Edge)
     g.setColour(juce::Colours::white.withAlpha(0.8f));
@@ -672,13 +781,17 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       g.setColour(juce::Colours::black.withAlpha(0.95f));
       g.fillEllipse(sr.translated(1.0f, 1.0f).expanded(1.5f));
 
-      // Screw Body (Gold/Brass) - Slightly darker for subtlety
-      juce::ColourGradient sg(juce::Colour(0xffd8b048), sr.getX(), sr.getY(),
-                              juce::Colour(0xff423513), sr.getRight(),
+      // Screw Body (Silver/Chrome) - Ampeg Style
+      juce::ColourGradient sg(juce::Colour(0xffe0e0e0), sr.getX(), sr.getY(),
+                              juce::Colour(0xff202020), sr.getRight(),
                               sr.getBottom(), false);
-      sg.addColour(0.3f, juce::Colour(0xffe8e0c8)); // Specular (also darker)
+      sg.addColour(0.3f, juce::Colour(0xffffffff)); // Hot Specular
       g.setGradientFill(sg);
       g.fillEllipse(sr);
+
+      // Radial polish distortion
+      g.setColour(juce::Colours::white.withAlpha(0.3f));
+      g.drawEllipse(sr.reduced(0.5f), 0.5f);
 
       // --- Stronger Inner Shadow for Depth ---
       g.setColour(juce::Colours::black.withAlpha(0.65f));
@@ -735,22 +848,17 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       g.saveState();
       g.reduceClipRegion(r.expanded(2.0f).toNearestInt());
 
-      // 1. RECESSED VINTAGE PANEL (Aged Copper/Bronze) - Now more matte
-      // Apply darkening factor for visual hierarchy
-      juce::Colour c1 = juce::Colour::fromRGB(
-          (int)(78 * darkenFactor), (int)(65 * darkenFactor),
-          (int)(52 * darkenFactor)); // Darkened top
-      juce::Colour c2 = juce::Colour::fromRGB(
-          (int)(36 * darkenFactor), (int)(28 * darkenFactor),
-          (int)(23 * darkenFactor)); // Darkened bottom
+      // 1. RECESSED PANEL (Now dynamic via Palette)
+      juce::Colour c1 = currentPalette.panel.brighter(0.1f * darkenFactor);
+      juce::Colour c2 = currentPalette.panel.darker(0.1f * darkenFactor);
 
       // Gradient: Smooth vertical/radial feel (top lighter, bottom darker)
       juce::ColourGradient panG(c1, r.getCentreX(), r.getY(), c2,
                                 r.getCentreX(), r.getBottom(), false);
-      panG.addColour(0.3f,
-                     juce::Colour::fromRGB(
-                         (int)(82 * darkenFactor), (int)(68 * darkenFactor),
-                         (int)(55 * darkenFactor))); // Reduced top highlight
+      panG.addColour(
+          0.3f, juce::Colour::fromRGB(
+                    (int)(60 * darkenFactor), (int)(62 * darkenFactor),
+                    (int)(68 * darkenFactor))); // Steel highlight (Neutral)
 
       g.setGradientFill(panG);
       g.fillRoundedRectangle(r, curRadius);
@@ -769,24 +877,26 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
           g.drawLine(r.getX(), yy, r.getRight(), yy, 0.5f);
         }
       } else if (surfaceType == 1) {
-        // Dark anodized (FX) - subtle matte texture
-        for (int i = 0; i < 50; ++i) {
+        // Dark anodized (FX) - High-end sandblasted texture
+        for (int i = 0; i < 200; ++i) {
           float rx = r.getX() +
                      juce::Random::getSystemRandom().nextFloat() * r.getWidth();
           float ry = r.getY() + juce::Random::getSystemRandom().nextFloat() *
                                     r.getHeight();
-          g.setColour(juce::Colours::black.withAlpha(0.02f));
-          g.fillRect(rx, ry, 1.5f, 1.5f);
+          float s = juce::Random::getSystemRandom().nextFloat() * 1.2f + 0.5f;
+          g.setColour(juce::Colours::white.withAlpha(0.04f));
+          g.fillRect(rx, ry, s, s);
+          g.setColour(juce::Colours::black.withAlpha(0.06f));
+          g.fillRect(rx + 0.5f, ry + 0.5f, s, s);
         }
       } else if (surfaceType == 2) {
-        // --- POLISHED BRONZE/BROWN (Master Out) - Subtle polish, mostly dark
-        // Much darker, only slightly lighter than base panels
-        juce::ColourGradient polish(juce::Colour(0xff5a4d40), r.getX(),
-                                    r.getY(), juce::Colour(0xff2d241d),
+        // --- POLISHED STEEL (Master Out) - Neutral Steel
+        juce::ColourGradient polish(juce::Colour(0xff2a2a2a), r.getX(),
+                                    r.getY(), juce::Colour(0xff0a0a0a),
                                     r.getRight(), r.getBottom(), false);
-        polish.addColour(0.3f, juce::Colour(0xff6a5848)); // Subtle highlight
-        polish.addColour(0.5f, juce::Colour(0xff453a2e)); // Mid-tone
-        polish.addColour(0.7f, juce::Colour(0xff524638)); // Lower reflection
+        polish.addColour(0.3f, juce::Colour(0xff4a4a4f)); // Steel highlight
+        polish.addColour(0.5f, juce::Colour(0xff181818)); // Mid-tone
+        polish.addColour(0.7f, juce::Colour(0xff25252a)); // Lower reflection
         g.setGradientFill(polish);
         g.fillRoundedRectangle(r, curRadius);
 
@@ -797,17 +907,49 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
         g.setColour(juce::Colours::white.withAlpha(0.08f)); // Much more subtle
         g.fillPath(streak);
 
-        // Minimal warm highlight rim
-        g.setColour(juce::Colour(0xff7a6850).withAlpha(0.15f)); // Very subtle
+        // Minimal neutral highlight rim
+        g.setColour(juce::Colour(0xff707075).withAlpha(0.2f)); // Steel rim
         g.drawRoundedRectangle(r.reduced(0.5f), curRadius, 1.5f);
       }
 
-      // Subtle Inner Shadow for Depth (Modulated by bias)
-      float innerShadowAlpha = (depthBias < 0.0f) ? 0.45f : 0.25f;
-      for (float i = 0.5f; i <= 3.5f; i += 1.0f) {
+      // --- HYPER-REALISTIC METER GLASS ---
+      if (r == L.meter || r == L.outVuArea) {
+        juce::Path glass;
+        glass.addRoundedRectangle(r.getX(), r.getY(), r.getWidth(),
+                                  r.getHeight() * 0.45f, curRadius, curRadius,
+                                  true, true, false, false);
+        juce::ColourGradient gg(juce::Colours::white.withAlpha(0.15f), r.getX(),
+                                r.getY(), juce::Colours::transparentWhite,
+                                r.getX(), r.getBottom(), false);
+        g.setGradientFill(gg);
+        g.fillPath(glass);
+
+        // Smudges & Fingerprints (Very subtle)
+        juce::Random rnd(555);
+        g.setColour(juce::Colours::black.withAlpha(0.03f));
+        for (int i = 0; i < 4; ++i) {
+          g.fillEllipse(r.getX() + rnd.nextFloat() * r.getWidth(),
+                        r.getY() + rnd.nextFloat() * r.getHeight(), 35, 35);
+        }
+
+        // Edge light catching dust
+        g.setColour(juce::Colours::white.withAlpha(0.08f));
+        g.drawRoundedRectangle(r.reduced(0.8f), curRadius, 0.4f);
+      }
+
+      // (Hyper-realistic glass logic follows above)
+
+      // Subtle Inner Shadow for Depth (Intensity ramped up for 3D)
+      float innerShadowAlpha = (depthBias < 0.0f) ? 0.65f : 0.45f;
+      for (float i = 0.5f; i <= 5.5f; i += 1.0f) {
         g.setColour(juce::Colours::black.withAlpha(innerShadowAlpha / i));
         g.drawRoundedRectangle(r.reduced(i), curRadius, 1.0f);
       }
+
+      // Grunge/Dust in corners
+      g.setColour(juce::Colours::black.withAlpha(0.12f));
+      g.fillEllipse(r.getX() - 2, r.getY() - 2, 10, 10);
+      g.fillEllipse(r.getRight() - 8, r.getBottom() - 8, 10, 10);
 
       // 2. DOUBLE BLACK FRAME (Groove)
       // Outer groove line
@@ -836,7 +978,8 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.setColour(juce::Colours::black.withAlpha(0.9f));
     g.drawRoundedRectangle(r.expanded(1.5f), curRadius, 1.5f);
 
-    // 2. Ambient Occlusion (Soft layered shadow for weight - Modulated by bias)
+    // 2. Ambient Occlusion (Soft layered shadow for weight - Modulated by
+    // bias)
     float aoBase =
         (depthBias > 0.0f) ? 0.65f : ((depthBias < 0.0f) ? 0.15f : 0.45f);
     g.setColour(juce::Colours::black.withAlpha(aoBase));
@@ -845,37 +988,44 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       g.drawRoundedRectangle(r.expanded(ext).translated(i, i), curRadius, 2.5f);
     }
 
-    // 3. Sculpted Frame Body (12px Heavy Metal)
+    // 3. Sculpted Frame Body (12px Heavy Metal) - Neutral Silver/Steel
     // Bottom/Shadow side (Deep metal)
-    g.setColour(juce::Colour(0xff1a1816));
+    g.setColour(juce::Colour(0xff0a0a0a));
     g.drawRoundedRectangle(r.translated(1.5f, 1.5f), curRadius, 12.0f);
-    // Top/Light side (Industrial Bronze highlight) - Darkened by 15% &
-    // Desaturated
+    // Top/Light side (Steel highlight)
     float hiMod =
         (depthBias > 0.0f) ? 0.15f : ((depthBias < 0.0f) ? -0.25f : 0.0f);
-    g.setColour(juce::Colour(0xff5a554a)
-                    .darker(0.15f - hiMod)
-                    .withMultipliedSaturation(0.92f));
+    g.setColour(juce::Colour(0xff808080).darker(0.15f - hiMod));
     g.drawRoundedRectangle(r.translated(-0.8f, -0.8f), curRadius, 12.0f);
 
-    // 4. Anodized Accent Layer (The "tint") - Darkened by 15%
-    g.setColour(baseCol.darker(0.15f).withAlpha(0.28f));
+    // 4. Anodized Accent Layer (The "tint")
+    g.setColour(baseCol.darker(0.25f).withAlpha(0.35f));
     g.drawRoundedRectangle(r, curRadius, 10.0f);
 
-    // 5. Polished Ridge (The sharp peak edge) - Desaturated
-    g.setColour(
-        baseCol.brighter(0.4f).withMultipliedSaturation(0.92f).withAlpha(0.5f));
-    g.drawRoundedRectangle(r.reduced(0.5f), curRadius, 1.2f);
+    // Extra Bevel Layer for thickness
+    g.setColour(juce::Colours::black.withAlpha(0.4f));
+    g.drawRoundedRectangle(r.reduced(1.2f), curRadius, 1.0f);
+    g.setColour(juce::Colours::white.withAlpha(0.15f));
+    g.drawRoundedRectangle(r.reduced(0.8f), curRadius, 0.5f);
 
-    // 6. Specular Sparkle (Top-left extreme catching light)
-    g.setColour(juce::Colours::white.withAlpha(0.65f));
-    g.drawRoundedRectangle(r.reduced(0.2f).translated(-1.5f, -1.5f), curRadius,
-                           0.7f);
+    // 5. Polished Ridge (Sharp peak edge)
+    g.setColour(juce::Colours::white.withAlpha(0.7f));
+    g.drawRoundedRectangle(r.reduced(0.5f), curRadius, 0.8f);
 
-    // 7. Extreme Inner Cut Cave (Panel depth)
-    // This makes the panel seem deeply recessed inside the frame
-    g.setColour(juce::Colours::black.withAlpha(0.95f));
-    g.drawRoundedRectangle(r.reduced(6.0f), curRadius, 4.0f);
+    // 6. Specular Sparkle (Sharp industrial glint)
+    g.setColour(juce::Colours::white.withAlpha(0.9f));
+    g.drawRoundedRectangle(r.reduced(0.2f).translated(-1.8f, -1.8f), curRadius,
+                           0.6f);
+
+    // 7. Extreme Inner Cut Cave (Deep panel recession)
+    g.setColour(juce::Colours::black.withAlpha(0.98f));
+    for (float i = 5.0f; i <= 7.0f; i += 0.5f)
+      g.drawRoundedRectangle(r.reduced(i), curRadius, 1.0f);
+
+    // 8. Outer Drop Shadow (Enhanced weight)
+    g.setColour(juce::Colours::black.withAlpha(0.5f));
+    g.drawRoundedRectangle(r.expanded(1.2f).translated(2.0f, 2.0f), curRadius,
+                           2.0f);
 
     // 8. Bottom Rim Reflection (Light from the ground)
     g.setColour(juce::Colours::white.withAlpha(0.12f));
@@ -889,40 +1039,46 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     float cr = 6.0f; // Corner radius for badge
 
     g.saveState();
-    // Badge Background (Darker/Different Metal)
-    juce::Colour b1 = juce::Colour(0xff2d2926); // Dark Ash
-    juce::Colour b2 = juce::Colour(0xff1a1816);
+    // Badge Background (Dark Metal)
+    juce::Colour b1 = juce::Colour(0xff1a1a1c); // Dark Steel
+    juce::Colour b2 = juce::Colour(0xff080808);
     juce::ColourGradient bg(b1, badge.getX(), badge.getY(), b2,
                             badge.getRight(), badge.getBottom(), false);
     g.setGradientFill(bg);
     g.fillRoundedRectangle(badge, cr);
 
-    // Fine texture for badge
-    g.setColour(juce::Colours::white.withAlpha(0.04f));
-    for (int i = 0; i < 100; ++i) {
-      float rx = badge.getX() +
-                 juce::Random::getSystemRandom().nextFloat() * badge.getWidth();
-      float ry = badge.getY() + juce::Random::getSystemRandom().nextFloat() *
-                                    badge.getHeight();
-      g.fillRect(rx, ry, 2.0f, 2.0f);
-    }
+    // Badge Border (Bevel) - Silver/Chrome
+    g.setColour(juce::Colour(0xffd0d0d0)); // Brighter Chrome
+    g.drawRoundedRectangle(badge.expanded(0.5f), cr, 1.8f);
+    g.setColour(juce::Colours::black.withAlpha(0.9f));
+    g.drawRoundedRectangle(badge.reduced(1.0f), cr, 0.8f);
 
-    // Badge Border (Bevel) - Desaturated Gold/Bronze
-    g.setColour(juce::Colour(0xff605040)
-                    .withMultipliedSaturation(0.92f)); // Bronze Highlight
-    g.drawRoundedRectangle(badge.expanded(0.5f), cr, 1.5f);
-    g.setColour(juce::Colours::black.withAlpha(0.8f));
-    g.drawRoundedRectangle(badge.reduced(1.0f), cr, 1.0f);
+    // GLASS REFLECTION LAYER
+    juce::Path glass;
+    glass.addRectangle(badge.getX(), badge.getY(), badge.getWidth(),
+                       badge.getHeight() * 0.45f);
+    juce::ColourGradient gg(juce::Colours::white.withAlpha(0.12f), badge.getX(),
+                            badge.getY(), juce::Colours::transparentWhite,
+                            badge.getX(),
+                            badge.getY() + badge.getHeight() * 0.5f, false);
+    g.setGradientFill(gg);
+    g.fillPath(glass);
 
-    // 4 Small Screws for the Badge
+    // Subtle diagonal sweep
+    juce::Path sweep;
+    sweep.addRectangle(badge.getX(), badge.getY() + 10, badge.getWidth(), 2);
+    g.setColour(juce::Colours::white.withAlpha(0.05f));
+    g.fillPath(sweep);
+
+    // 4 Small Screws for the Badge (Silver)
     auto drawSmallScrew = [&](float x, float y) {
       float s = 10.0f;
       juce::Rectangle<float> sr(x - s / 2, y - s / 2, s, s);
       g.setColour(juce::Colours::black.withAlpha(0.8f));
       g.fillEllipse(sr.translated(1, 1));
 
-      juce::ColourGradient sg(juce::Colour(0xffc0c0c0), sr.getX(), sr.getY(),
-                              juce::Colour(0xff404040), sr.getRight(),
+      juce::ColourGradient sg(juce::Colour(0xffe0e0e0), sr.getX(), sr.getY(),
+                              juce::Colour(0xff606060), sr.getRight(),
                               sr.getBottom(), false);
       g.setGradientFill(sg);
       g.fillEllipse(sr);
@@ -970,18 +1126,23 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       g.setFont(f);
 
       if (charStr.trim().isNotEmpty()) {
-        juce::Colour c = juce::Colour(0xffe8e8e8); // Default Bright White
+        juce::Colour c = juce::Colour(0xffcfc5b0); // Default Bright White
 
         if (i < 5)
-          c = juce::Colour(0xff3377ff); // FUNKY -> Brighter Blue
+          c = currentPalette.accent; // FUNKY -> Ampeg Blue
         else if (i >= 6 && i <= 10)
-          c = juce::Colour(0xffffdd00); // MOOSE -> Brighter Yellow
+          c = currentPalette.labelText; // MOOSE -> Silver/White
 
         // 1. Glow/Bloom behind - Reduced for BASS STRATEGY
         float glowAlpha = (i < 12) ? 0.15f : 0.05f;
         g.setColour(c.withAlpha(glowAlpha));
         g.drawText(charStr, (int)curX, (int)(badge.getY()), (int)charW + 10,
                    (int)badge.getHeight(), juce::Justification::centred, false);
+
+        // Randomly fade some letters for worn look
+        juce::Random textRng(fullText.hashCode() + i);
+        float wearAlpha = 0.5f + textRng.nextFloat() * 0.5f;
+        c = c.withAlpha(wearAlpha);
 
         // 2. Drop Shadow (Deep)
         g.setColour(juce::Colours::black.withAlpha(0.85f));
@@ -1009,39 +1170,74 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
 
   // Section frames
   const auto darkFrameCol =
-      juce::Colour(0xff121210); // Almost black, slightly warm
+      juce::Colour(0xff0a0a0c); // Deep neutral charcoal (cool)
 
   // Subtle color temperature tints (studio lighting feel)
   const auto warmTint =
-      juce::Colour::fromRGB(255, 220, 180); // Warm amber for AMP
+      juce::Colour::fromRGB(200, 205, 215); // Neutral Steel for AMP
   const auto coolTint =
       juce::Colour::fromRGB(180, 200, 220); // Cool blue for COMP
-  const auto greenTint =
-      juce::Colour::fromRGB(200, 220, 200); // Subtle green for FX
+  const auto greenTint = juce::Colour::fromRGB(190, 200, 190); // Neutral for FX
 
   // Meter / Master (Raised)
   drawFrame(L.meter, -1.0f, -1.0f, darkFrameCol, false, 0.6f);
-  // AMP (Baseline with warm glow, brushed metal)
-  drawFrame(L.amp, -1.0f, -1.0f, darkFrameCol, false, 0.0f, 1.0f, warmTint, 0);
-  // COMP (Slightly darker with cool tone, brushed metal)
-  drawFrame(L.comp, -1.0f, -1.0f, darkFrameCol, true, 0.0f, 0.92f, coolTint, 0);
 
-  // FX Slots: Frames Only (Static)
-  const float fxDarken = 0.975f;
+  // AMP section frame
+  {
+    const bool isOn = ampOnToggle.getToggleState();
+    const float darken = isOn ? 1.0f : 0.65f;
+    const juce::Colour tint =
+        isOn ? juce::Colours::transparentBlack : juce::Colours::black;
+    drawFrame(L.amp, -1.0f, -1.0f, juce::Colours::transparentBlack, true, -0.4f,
+              darken, tint, 0);
+    // section label moved to left side elsewhere; avoid duplicate in centre
+    // drawLabel(g, L.amp.withHeight(32.0f).translated(0, 4),
+    // "AMPLIFIER", 20.0f);
+  }
+
+  // COMP section frame
+  {
+    const bool isOn = compOn.getToggleState();
+    const float darken = isOn ? 0.92f : 0.65f;
+    const juce::Colour tint = isOn ? coolTint : juce::Colours::black;
+    drawFrame(L.comp, -1.0f, -1.0f, juce::Colours::transparentBlack, true, 0.0f,
+              darken, tint, 0);
+    // drawLabel(g, L.comp.withHeight(32.0f).translated(0, 4), "COMPRESSOR",
+    //           20.0f);
+  }
+
+  // FX slots
   for (int i = 0; i < 4; ++i) {
-    drawFrame(L.fxSlots[(size_t)i].reduced(4.0f), 10.0f, 1.2f, darkFrameCol,
-              true, -0.4f, fxDarken, greenTint, 1); // Dark anodized FX
+    const juce::ToggleButton *toggles[] = {&octOn, &envOn, &phaserOn,
+                                           &chorusOn};
+    const bool isOn = toggles[i]->getToggleState();
+    const float darken = isOn ? 0.85f : 0.60f;
+    const juce::Colour tint =
+        isOn ? juce::Colours::transparentBlack : juce::Colours::black;
+
+    drawFrame(L.fxSlots[i], -1.0f, -1.0f, juce::Colours::transparentBlack, true,
+              -0.2f, darken, tint, 1);
+    // central fx slot label removed to avoid duplication with left-hand heading
+    // drawLabel(g, L.fxSlots[i].withHeight(28.0f), L.fxNames[i], 16.0f,
+    //           juce::Justification::centred);
   }
 
   // Master / Output Meter (Polished silver/steel Frontplate)
-  drawFrame(L.master, -1.0f, -1.0f, darkFrameCol, true, 0.4f, 1.1f,
-            juce::Colours::transparentBlack, 2); // Polished master
+  {
+    const bool isOn = masterOn.getToggleState();
+    const float darken = isOn ? 1.0f : 0.65f;
+    const juce::Colour tint =
+        isOn ? juce::Colours::transparentBlack : juce::Colours::black;
+    drawFrame(L.master, -1.0f, -1.0f, juce::Colours::transparentBlack, true,
+              0.4f, darken, tint, 2);
+  }
+
   drawFrame(L.outVuArea, -1.0f, -1.0f, darkFrameCol, true, 0.4f, 1.1f,
-            juce::Colours::transparentBlack, 2); // Polished output area
+            juce::Colours::transparentBlack, 2);
   drawFrame(L.elchArea, 0.0f, 1.5f, darkFrameCol, true, -0.2f);
 
   // Titles
-  g.setColour(juce::Colour(0xffe8e8e8));
+  g.setColour(juce::Colour(0xffcfc5b0));
 
   auto titleAt = [&](juce::Rectangle<float> r, const juce::String &t,
                      bool hasFlowNum = false) {
@@ -1066,7 +1262,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   titleAt(L.master, "MASTER OUT", true);
   // Add "/ CAB" in a small font right below "MASTER OUT" to stop it from
   // invading the knob space
-  g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.6f));
+  g.setColour(juce::Colour(0xffcfc5b0).withAlpha(0.6f));
   drawLabel(g,
             L.master.reduced(14.0f, 5.0f)
                 .removeFromTop(40.0f)
@@ -1085,7 +1281,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   // Knob labels
   auto labelUnder = [&](juce::Component &c, const juce::String &t,
                         float size = 16.5f,
-                        juce::Colour col = juce::Colour(0xffe8e8e8)) {
+                        juce::Colour col = juce::Colour(0xffcfc5b0)) {
     auto b = c.getBounds().toFloat();
     g.setColour(col);
     drawLabel(
@@ -1134,11 +1330,12 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   labelUnder(compAtkKnob, "ATTACK", 15.0f);
   labelUnder(compRelKnob, "RELEASE", 15.0f);
 
-  g.setColour(juce::Colour(0xffe8e8e8));
+  g.setColour(juce::Colour(0xffcfc5b0));
   {
     auto b = ratioBox.getBounds().toFloat();
-    drawLabel(g, {b.getX(), b.getBottom() + 8.0f, b.getWidth(), 18.0f}, "RATIO",
-              12.0f);
+    // draw label *above* the combo box instead of below
+    drawLabel(g, {b.getX(), b.getY() - 20.0f, b.getWidth(), 18.0f}, "RATIO",
+              12.0f, juce::Justification::centredBottom);
   }
 
   // Helper for ON/OFF labels above toggles
@@ -1152,26 +1349,26 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   labelToggle(ampOnToggle);
   labelToggle(compOn);
   labelToggle(masterOn);
-  // Manual draw to move it higher (+2 instead of default +10)
+
+  // Manual draw to move it higher
   {
     auto b = mixKnob.getBounds().toFloat();
-    g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
+    g.setColour(currentPalette.labelText.withAlpha(0.7f));
     drawLabel(
         g,
-        {b.getX() - 12.0f, b.getBottom() + 10.0f, b.getWidth() + 24.0f, 22.0f},
-        "DRY/WET", 15.0f);
+        {b.getX() - 12.0f, b.getBottom() + 2.0f, b.getWidth() + 24.0f, 20.0f},
+        "DRY/WET", 15.0f, juce::Justification::centredTop);
   }
 
-  // MONO MAKER label (positioned below the knob like DRY/WET)
+  // MONO MAKER label
   {
     auto bK = monoMakerKnob.getBounds().toFloat();
-    g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
+    g.setColour(currentPalette.labelText.withAlpha(0.7f));
 
-    // MONO MAKER label perfectly centered below the knob like DRY/WET
     drawLabel(g,
-              {bK.getX() - 20.0f, bK.getBottom() + 10.0f, bK.getWidth() + 40.0f,
-               22.0f},
-              "MONO MAKER", 14.5f);
+              {bK.getX() - 20.0f, bK.getBottom() + 2.0f, bK.getWidth() + 40.0f,
+               20.0f},
+              "MONO MAKER", 14.5f, juce::Justification::centredTop);
   }
 
   // Labels for sub-toggles (Modern/Parallel/Auto)
@@ -1194,52 +1391,60 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   // POSITIONED ABOVE for Master area (to clear screws/corner elements)
   auto labelSubMaster = [&](juce::Slider &s, const juce::String &txt) {
     auto b = s.getBounds().toFloat();
-    g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
+    g.setColour(juce::Colour(0xffcfc5b0).withAlpha(0.7f));
     drawLabel(g,
               {b.getX() - 15.0f, b.getY() - 15.0f, b.getWidth() + 30.0f, 16.0f},
               txt, 11.0f, juce::Justification::centredBottom);
   };
 
-  labelSubToggle(octModernToggle, "MODERN");
   labelSubToggle(fxParallelToggle, "PARALLEL");
-  labelSubToggleMaster(ampAutoGainToggle, "AUTO GAIN");
-  labelSubToggleMaster(autoGateToggle, "AUTO GATE");
+  // Tight label for Amp Auto Gain to avoid hitting Volume label
+  {
+    auto b = ampAutoGainToggle.getBounds().toFloat();
+    drawLabel(g, {b.getX(), b.getY() - 16.0f, b.getWidth(), 16.0f}, "AUTO",
+              11.0f, juce::Justification::centredBottom);
+  }
+  labelSubToggle(autoGateToggle, "GATE");
+  labelSubToggle(compAutoMakeupToggle, "AUTO");
   labelToggle(monoMakerToggle);
-  labelSubToggleMaster(autoGainToggle, "AUTO GAIN");
+  labelSubToggle(autoGainToggle,
+                 "AUTO"); // Consolidated use of labelSubToggle
 
   // --- CAB Button Recessed Frame (Window Style) ---
   {
     auto b = cabButton.getBounds().toFloat();
-    // Industrial recessed slot (The Frame)
-    drawFrame(b.expanded(2.0f), 4.0f, 1.5f, juce::Colour(0xff080807), true);
+    // Industrial recessed slot (The Frame) - Deeper recessed effect
+    drawFrame(b.expanded(2.0f), 4.0f, 1.8f, juce::Colour(0xff080807), true,
+              -0.6f);
 
     // Glass/Recessed Glow inside the window
-    g.setColour(juce::Colours::black.withAlpha(0.6f));
+    g.setColour(juce::Colours::black.withAlpha(0.65f));
     g.fillRoundedRectangle(b, 3.0f);
 
     // Inner Shadow line
-    g.setColour(juce::Colours::black.withAlpha(0.9f));
-    g.drawRoundedRectangle(b, 3.0f, 1.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.95f));
+    g.drawRoundedRectangle(b, 3.0f, 1.2f);
 
-    // Cabinet Label above the slot
-    drawLabel(g, {b.getX(), b.getY() - 24.0f, b.getWidth(), 18.0f}, "CABINET",
-              15.0f);
+    // Cabinet Label BELOW the slot - Position adjusted to align with knobs
+    g.setColour(currentPalette.labelText.withAlpha(0.7f));
+    drawLabel(g, {b.getX(), b.getBottom() + 7.0f, b.getWidth(), 20.0f},
+              "CABINET", 15.0f, juce::Justification::centredTop);
   }
 
-  // IR MIX Label
+  // IR MIX Label - Perfectly aligned BELOW the knob
   {
     auto b = irMixKnob.getBounds().toFloat();
-    g.setColour(juce::Colour(0xffe8e8e8).withAlpha(0.7f));
-    drawLabel(g,
-              {b.getX() - 10.0f, cabButton.getBounds().toFloat().getY() - 24.0f,
-               b.getWidth() + 20.0f, 18.0f},
-              "IR MIX", 15.0f);
+    g.setColour(currentPalette.labelText.withAlpha(0.7f));
+    drawLabel(
+        g,
+        {b.getX() - 20.0f, b.getBottom() + 2.0f, b.getWidth() + 40.0f, 20.0f},
+        "IR MIX", 14.5f, juce::Justification::centredTop);
   }
 
   // FX parameter labels
   g.setColour(sub);
-  labelUnder(oct1Knob, "OCT 1", 15.0f, sub);
-  labelUnder(oct2Knob, "OCT 2", 15.0f, sub);
+  labelUnder(oct1Knob, "-1 OCT", 15.0f, sub);
+  labelUnder(oct2Knob, "+1 OCT", 15.0f, sub);
   labelUnder(octMixKnob, "MIX", 15.0f, sub);
 
   labelToggle(octOn);
@@ -1267,33 +1472,41 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
                 false);
   }
 
-  // --- Module Mounting Screws (Rack-Mount Style) ---
+  // --- Module Mounting Screws (Rusty & Abused) ---
   auto drawModScrew = [&](juce::Point<float> p) {
     float s = 13.0f;
     juce::Rectangle<float> sr(p.x - s / 2, p.y - s / 2, s, s);
 
-    // Hole shadow
-    g.setColour(juce::Colours::black.withAlpha(1.0f));
-    g.fillEllipse(sr.translated(0.5f, 0.5f).expanded(0.5f));
+    // Hole shadow / deep dirt
+    g.setColour(juce::Colours::black.withAlpha(0.95f));
+    g.fillEllipse(sr.translated(0.0f, 1.0f).expanded(2.0f)); // Thick grime ring
 
-    // Screw Head
-    juce::ColourGradient sg(juce::Colour(0xff606060), sr.getX(), sr.getY(),
-                            juce::Colour(0xff252525), sr.getRight(),
-                            sr.getBottom(), false);
+    // Screw Head (Dark metal, clean black)
+    juce::ColourGradient sg(juce::Colour(0xff252528), sr.getX(), sr.getY(),
+                            juce::Colours::black, sr.getRight(), sr.getBottom(),
+                            false);
     g.setGradientFill(sg);
     g.fillEllipse(sr.reduced(0.5f));
 
-    // --- Stronger Inner Shadow ---
+    // Stronger Inner Shadow
     g.setColour(juce::Colours::black.withAlpha(0.7f));
     g.drawEllipse(sr.reduced(1.2f), 1.2f);
 
-    // Cross Slot
-    g.setColour(juce::Colours::black);
-    g.fillRect(sr.reduced(3.5f, 5.0f));
-    g.fillRect(sr.reduced(5.0f, 3.5f));
+    // Cross Slot (Regular)
+    g.saveState();
+    g.addTransform(juce::AffineTransform::rotation(
+        p.x * 0.05f + p.y * 0.1f, sr.getCentreX(),
+        sr.getCentreY())); // Random rotation
 
-    // Tiny rim highlight
-    g.setColour(juce::Colours::white.withAlpha(0.2f));
+    float slotW = 3.5f;
+    float slotH = 5.0f;
+    g.setColour(juce::Colours::black);
+    g.fillRect(sr.reduced(slotW, slotH));
+    g.fillRect(sr.reduced(slotH, slotW));
+    g.restoreState();
+
+    // Tiny rim highlight (Muted because of dirt)
+    g.setColour(juce::Colours::white.withAlpha(0.1f));
     g.drawEllipse(sr.reduced(0.5f), 0.8f);
   };
 
@@ -1659,8 +1872,8 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
   auto leftCol = content;
 
   // Split Left Col into Amp|Comp (Top) and FX (Bottom)
-  // Increased slightly to 0.37f to fix Slap button clipping
-  const float hUpper = std::floor(leftCol.getHeight() * 0.37f);
+  // Increased to 0.40f to give more vertical room for 2-row modules (Comp)
+  const float hUpper = std::floor(leftCol.getHeight() * 0.40f);
   auto upperRow = leftCol.removeFromTop(hUpper);
   leftCol.removeFromTop(G);
   auto lowerRow = leftCol;
@@ -1808,7 +2021,6 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
     switch (i) {
     case 0:
       octOn.setBounds(toggleRectTop.toNearestInt());
-      octModernToggle.setBounds(toggleRectBottom.toNearestInt());
       break;
     case 1:
       envOn.setBounds(toggleRectTop.toNearestInt());
@@ -1850,58 +2062,33 @@ void FunkyMooseAudioProcessorEditor::layoutAmp(
   float swH = 24.0f;
   float swY = bottomRow.getY();
 
-  // Calculate gap centers (between knob centers)
+  // Main Toggles Row (Gap distribution for symmetry)
   float x0 = row.getX() + k / 2.0f;
   float step = k + G;
 
-  float gBassMid = x0 + step * 1.5f;
-  float gMidTre = x0 + step * 2.5f;
-  float gTreVol = x0 + step * 3.5f;
+  float gap1 = x0 + step * 0.5f;
+  float gap2 = x0 + step * 1.5f;
+  float gap3 = x0 + step * 2.5f;
+  float gap4 = x0 + step * 3.5f; // Where old Auto-Gain was
 
-  // Gap 2 (Bass-Mid) -> LOW CUT
-  lowCutToggle.setBounds((int)(gBassMid - swW / 2.0f), (int)swY, (int)swW,
+  lowCutToggle.setBounds((int)(gap1 - swW / 2.0f), (int)swY, (int)swW,
                          (int)swH);
+  tubeToggle.setBounds((int)(gap2 - swW / 2.0f), (int)swY, (int)swW, (int)swH);
+  slapToggle.setBounds((int)(gap3 - swW / 2.0f), (int)swY, (int)swW, (int)swH);
+  autoGateToggle.setBounds((int)(gap4 - swW / 2.0f), (int)swY, (int)swW,
+                           (int)swH);
 
-  // Gap 3 (Mid-Treble) -> TUBE
-  tubeToggle.setBounds((int)(gMidTre - swW / 2.0f), (int)swY, (int)swW,
-                       (int)swH);
-
-  // Gap 4 (Treble-Volume) -> SLAP
-  slapToggle.setBounds((int)(gTreVol - swW / 2.0f), (int)swY, (int)swW,
-                       (int)swH);
-
-  // Gap 2 (Bass-Mid) -> Smart Gate Toggle (Header Row) - User's Plan A
+  // Amp Auto Gain toggle - FAR bottom-right corner
   {
-    const auto &L = getLayout();
-    auto headerRect = L.amp.reduced(10.0f).withHeight(32.0f);
-    float gateW = swW; // Same as low cut
-    float gateH = swH; // Same as low cut
-
-    // Position toggle in the second gap (Bass-Mid) at header row height
-    float gBassMid = x0 + step * 1.5f;
-    auto toggleRect = juce::Rectangle<float>(
-        gBassMid - gateW / 2.0f, headerRect.getCentreY() + 4.0f, gateW, gateH);
-    autoGateToggle.setBounds(toggleRect.toNearestInt());
-  }
-
-  // Amp Auto Gain toggle - same height as ON/OFF, between Treble and Volume
-  {
-    const auto &L = getLayout();
-    constexpr float headerH = 32.0f;
     constexpr float autoW = 44.0f;
-
-    // Get the header area (same as ON/OFF toggle)
-    auto headerRect = L.amp.reduced(10.0f).withHeight(headerH);
-
-    // Calculate X position between Treble and Volume knobs
-    float autoX = gTreVol; // Center between Treble and Volume
-
-    // Create toggle rect at header height
-    auto toggleRect = juce::Rectangle<float>(
-        autoX - autoW / 2.0f, headerRect.getY() + 4.0f, autoW, 28.0f);
-    toggleRect = toggleRect.translated(0, 6.0f); // Same offset as ON/OFF
-
-    ampAutoGainToggle.setBounds(toggleRect.toNearestInt());
+    // Align flush with ON/OFF switch (which is at L.amp.getRight() - 10.0f
+    // - 44.0f). `r` here is inner(L.amp), which is reduced by 18.0f
+    // horizontally. So r.getRight() == L.amp.getRight() - 18.0f.
+    // L.amp.getRight() - 54.0f == r.getRight() + 18.0f - 54.0f ==
+    // r.getRight()
+    // - 36.0f.
+    float cornerX = r.getRight() - 36.0f;
+    ampAutoGainToggle.setBounds((int)cornerX, (int)swY, (int)autoW, (int)swH);
   }
 }
 
@@ -1930,13 +2117,11 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
     float slotX = area.getX() + col * wSlot;
     float slotY = area.getY() + row * rowH;
 
-    // Shift Row 0 up to make room for its own labels under it
-    // Shift Row 1 down slightly, but not too far to avoid clipping the bottom
-    // frame
+    // Spread the rows significantly to get labels exactly in the middle
     if (row == 0)
-      slotY -= 8.0f;
+      slotY -= 24.0f;
     if (row == 1)
-      slotY += 16.0f;
+      slotY += 28.0f; // Pull up slightly to keep bottom labels inside frame
 
     // Center in slot
     float cx = slotX + wSlot * 0.5f;
@@ -1965,7 +2150,7 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
   {
     float slotX = area.getX() + 2 * wSlot;
     // Apply same row 0 shift
-    float slotY = area.getY() + 0 * rowH - 8.0f;
+    float slotY = area.getY() + 0 * rowH - 24.0f;
 
     float cx = slotX + wSlot * 0.5f;
     float cy = slotY + rowH * 0.5f;
@@ -2042,28 +2227,28 @@ void FunkyMooseAudioProcessorEditor::layoutMaster(
 
   // Mix (Left of Master)
   mixKnob.setBounds(
-      juce::Rectangle<float>(c.x - 220.0f, c.y - 20.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x - 220.0f, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
   // Mono Maker (Further Left)
   float mmX = c.x - 390.0f;
-  monoMakerKnob.setBounds(juce::Rectangle<float>(mmX, c.y - 20.0f, 50.0f, 50.0f)
+  monoMakerKnob.setBounds(juce::Rectangle<float>(mmX, c.y - 25.0f, 50.0f, 50.0f)
                               .toNearestInt()); // Aligned with Dry/Wet
 
   // Toggle centered vertically precisely BETWEEN Mono Maker and Dry/Wet
   // 390 + 220 / 2 = 305. 305 - 12 (half toggle) = 293
   monoMakerToggle.setBounds(
-      juce::Rectangle<float>(c.x - 293.0f, c.y - 7.0f, 24.0f, 24.0f)
+      juce::Rectangle<float>(c.x - 305.0f, c.y - 7.0f, 24.0f, 24.0f)
           .toNearestInt());
 
   // IR Mix (Left of Cabinets)
   irMixKnob.setBounds(
-      juce::Rectangle<float>(c.x + 140.0f, c.y - 24.0f, 48.0f, 48.0f)
+      juce::Rectangle<float>(c.x + 130.0f, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
-  // Cab (Right of Master)
+  // Cab (Right of Master) - Bigger and deeper window
   cabButton.setBounds(
-      juce::Rectangle<float>(c.x + 230.0f, c.y - 13.0f, 86.0f, 26.0f)
+      juce::Rectangle<float>(c.x + 225.0f, c.y - 20.0f, 120.0f, 40.0f)
           .toNearestInt());
 }
 
@@ -2149,6 +2334,51 @@ void FunkyMooseAudioProcessorEditor::timerCallback() {
 
     if (cabButton.getButtonText() != txt)
       cabButton.setButtonText(txt);
+  }
+
+  // --- Visual Dimming for all modules ---
+  {
+    auto setAlphaForModule = [](bool isOn,
+                                const std::vector<juce::Component *> &comps) {
+      const float targetAlpha = isOn ? 1.0f : 0.40f;
+      for (auto *c : comps) {
+        if (std::abs(c->getAlpha() - targetAlpha) > 0.01f)
+          c->setAlpha(targetAlpha);
+      }
+    };
+
+    // Amp
+    setAlphaForModule(ampOnToggle.getToggleState(),
+                      {&gainKnob, &bassKnob, &midKnob, &trebleKnob, &volumeKnob,
+                       &slapToggle, &tubeToggle, &lowCutToggle,
+                       &ampAutoGainToggle});
+
+    // Comp
+    setAlphaForModule(compOn.getToggleState(),
+                      {&compInKnob, &compThreshKnob, &compMakeKnob,
+                       &compAtkKnob, &compRelKnob, &ratioBox,
+                       &compAutoMakeupToggle, &punchButton});
+
+    // FX Slot 0 (Octaver)
+    setAlphaForModule(octOn.getToggleState(),
+                      {&oct1Knob, &oct2Knob, &octMixKnob});
+
+    // FX Slot 1 (Envelope)
+    setAlphaForModule(envOn.getToggleState(),
+                      {&envAtkKnob, &envDecKnob, &envRangeKnob});
+
+    // FX Slot 2 (Phaser)
+    setAlphaForModule(phaserOn.getToggleState(),
+                      {&phRateKnob, &phColKnob, &phMixKnob});
+
+    // FX Slot 3 (Chorus)
+    setAlphaForModule(chorusOn.getToggleState(),
+                      {&chRateKnob, &chDepthKnob, &chMixKnob});
+
+    // Master
+    setAlphaForModule(masterOn.getToggleState(),
+                      {&outKnob, &mixKnob, &monoMakerKnob, &monoMakerToggle,
+                       &autoGainToggle});
   }
 
   // Input RMS
