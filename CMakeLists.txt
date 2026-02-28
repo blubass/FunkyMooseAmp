@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.15)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build Universal Binary" FORCE)
 
-project(FUNKY_MOOSE_AMP_VST3 VERSION 0.8.0 LANGUAGES C CXX)
+project(FUNKY_MOOSE_AMP VERSION 0.8.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -29,7 +29,7 @@ endif()
 find_package(JUCE CONFIG REQUIRED)
 
 # ---- Plugin (VST3 + AU + Standalone) ----
-juce_add_plugin(FUNKY_MOOSE_AMP_VST3
+juce_add_plugin(FUNKY_MOOSE_AMP
     COMPANY_NAME "Funky Moose Audio"
     PRODUCT_NAME "Funky Moose Amp"
     VERSION "1.0.0"
@@ -57,7 +57,7 @@ juce_add_plugin(FUNKY_MOOSE_AMP_VST3
 )
 
 # ---- Sources ----
-target_sources(FUNKY_MOOSE_AMP_VST3 PRIVATE
+target_sources(FUNKY_MOOSE_AMP PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
@@ -93,7 +93,7 @@ juce_add_binary_data(FUNKY_MOOSE_AMPData SOURCES
     Source/Assets/FrameOverlay.png
 )
 
-target_link_libraries(FUNKY_MOOSE_AMP_VST3 PRIVATE
+target_link_libraries(FUNKY_MOOSE_AMP PRIVATE
     FUNKY_MOOSE_AMPData
     juce::juce_dsp
     juce::juce_gui_extra
@@ -102,14 +102,14 @@ target_link_libraries(FUNKY_MOOSE_AMP_VST3 PRIVATE
 )
 
 # VST3 replace-vst2 guard
-target_compile_definitions(FUNKY_MOOSE_AMP_VST3 PRIVATE JUCE_VST3_CAN_REPLACE_VST2=0)
-if (TARGET FUNKY_MOOSE_AMP_VST3_VST3)
-    target_compile_definitions(FUNKY_MOOSE_AMP_VST3_VST3 PRIVATE JUCE_VST3_CAN_REPLACE_VST2=0)
+target_compile_definitions(FUNKY_MOOSE_AMP PRIVATE JUCE_VST3_CAN_REPLACE_VST2=0)
+if (TARGET FUNKY_MOOSE_AMP_VST3)
+    target_compile_definitions(FUNKY_MOOSE_AMP_VST3 PRIVATE JUCE_VST3_CAN_REPLACE_VST2=0)
 endif()
 
 # ---- Standalone: macOS bundle properties ----
-if (APPLE AND TARGET FUNKY_MOOSE_AMP_VST3_Standalone)
-    set_target_properties(FUNKY_MOOSE_AMP_VST3_Standalone PROPERTIES
+if (APPLE AND TARGET FUNKY_MOOSE_AMP_Standalone)
+    set_target_properties(FUNKY_MOOSE_AMP_Standalone PROPERTIES
         MACOSX_BUNDLE TRUE
         MACOSX_BUNDLE_BUNDLE_NAME "Funky Moose Amp"
         MACOSX_BUNDLE_GUI_IDENTIFIER "at.uwefelchle.funkymooseamp"
@@ -117,11 +117,11 @@ if (APPLE AND TARGET FUNKY_MOOSE_AMP_VST3_Standalone)
 
     # Force the real ELCH icon into the bundle after build
     # (JUCE/Xcode currently produce an 8-byte dummy Icon.icns)
-    add_custom_command(TARGET FUNKY_MOOSE_AMP_VST3_Standalone POST_BUILD
+    add_custom_command(TARGET FUNKY_MOOSE_AMP_Standalone POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns"
-        "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_VST3_Standalone>/../Resources/Icon.icns"
-        COMMAND /usr/bin/touch "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_VST3_Standalone>/../.."
+        "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../Resources/Icon.icns"
+        COMMAND /usr/bin/touch "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../.."
         COMMENT "Enforcing Elch icon over dummy Icon.icns and refreshing bundle..."
     )
 endif()
@@ -129,14 +129,14 @@ endif()
 # ---- Optimizations ----
 if (FUNKY_RELEASE)
     if ((CMAKE_CXX_COMPILER_ID MATCHES "Clang") OR (CMAKE_CXX_COMPILER_ID MATCHES "GNU"))
-        target_compile_options(FUNKY_MOOSE_AMP_VST3 PRIVATE
+        target_compile_options(FUNKY_MOOSE_AMP PRIVATE
             $<$<CONFIG:Release>:-O3>
             # $<$<CONFIG:Release>:-ffast-math>
         )
 
         # Clean Release log (optional): JUCE 8 deprecation warnings etc.
         if (FUNKY_CLEAN_LOG)
-            target_compile_options(FUNKY_MOOSE_AMP_VST3 PRIVATE
+            target_compile_options(FUNKY_MOOSE_AMP PRIVATE
                 $<$<CONFIG:Release>:-Wno-deprecated-declarations>
                 $<$<CONFIG:Release>:-Wno-deprecated-anon-enum-enum-conversion>
             )
@@ -152,17 +152,17 @@ if (APPLE)
     set(SYSTEM_VST3_DIR "/Library/Audio/Plug-Ins/VST3")
     set(SYSTEM_AU_DIR   "/Library/Audio/Plug-Ins/Components")
 
-    if (TARGET FUNKY_MOOSE_AMP_VST3_VST3)
+    if (TARGET FUNKY_MOOSE_AMP_VST3)
         install(
-            DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/FUNKY_MOOSE_AMP_VST3_artefacts/Release/VST3/Funky Moose Amp.vst3"
+            DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/FUNKY_MOOSE_AMP_artefacts/Release/VST3/Funky Moose Amp.vst3"
             DESTINATION "${SYSTEM_VST3_DIR}"
             USE_SOURCE_PERMISSIONS
         )
     endif()
 
-    if (TARGET FUNKY_MOOSE_AMP_VST3_AU)
+    if (TARGET FUNKY_MOOSE_AMP_AU)
         install(
-            DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/FUNKY_MOOSE_AMP_VST3_artefacts/Release/AU/Funky Moose Amp.component"
+            DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/FUNKY_MOOSE_AMP_artefacts/Release/AU/Funky Moose Amp.component"
             DESTINATION "${SYSTEM_AU_DIR}"
             USE_SOURCE_PERMISSIONS
         )

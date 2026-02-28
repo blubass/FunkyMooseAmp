@@ -44,7 +44,7 @@ jobs:
 
       - name: Zip macOS Plugins
         run: |
-          cd build/FUNKY_MOOSE_AMP_VST3_artefacts/Release
+          cd build/FUNKY_MOOSE_AMP_artefacts/Release
           zip -r "${GITHUB_WORKSPACE}/FunkyMooseAmp-macOS-VST3.zip"       "VST3/"
           zip -r "${GITHUB_WORKSPACE}/FunkyMooseAmp-macOS-AU.zip"         "AU/"
           zip -r "${GITHUB_WORKSPACE}/FunkyMooseAmp-macOS-Standalone.zip" "Standalone/"
@@ -99,7 +99,7 @@ jobs:
 
       - name: Zip Windows Plugins
         run: |
-          $rel = "build/FUNKY_MOOSE_AMP_VST3_artefacts/Release"
+          $rel = "build/FUNKY_MOOSE_AMP_artefacts/Release"
           Compress-Archive -Path "$rel/VST3/*"       -DestinationPath "FunkyMooseAmp-Windows-VST3.zip"
           Compress-Archive -Path "$rel/Standalone/*" -DestinationPath "FunkyMooseAmp-Windows-Standalone.zip"
         shell: pwsh
