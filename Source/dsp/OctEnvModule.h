@@ -127,16 +127,21 @@ public:
         const float clipK = 2.0f; // Softness factor for Tanh
 
         for (int ch = 0; ch < chs; ++ch) {
-          float dry = buffer.getSample(ch, i);
-          float out = (dry * dryWeight) + (wetSignal * wetWeight);
+          const float dry = buffer.getSample(ch, i);
 
-          // Apply clean Soft-Clip / Safety Limiter (Tanh Option A) to protect
-          // the Amp
-          float x = out * preClipGain;
-          if (!std::isfinite(x))
-            x = 0.0f;
-          out = softClipTanh(x, clipK);
+          float wet = wetSignal * wetWeight;
 
+          // Apply clean Soft-Clip / Safety Limiter only to wet signal (so Dry
+          // stays untouched) Bypass safety if signal is low enough to save CPU
+          // and maximize transparency
+          if (std::abs(wet) > 0.95f) {
+            float x = wet * preClipGain;
+            if (!std::isfinite(x))
+              x = 0.0f;
+            wet = softClipTanh(x, clipK);
+          }
+
+          const float out = (dry * dryWeight) + wet;
           buffer.setSample(ch, i, out);
         }
       }
