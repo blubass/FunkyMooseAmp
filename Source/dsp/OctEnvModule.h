@@ -131,9 +131,10 @@ public:
 
           float wet = wetSignal * wetWeight;
 
-          // Apply clean Soft-Clip / Safety Limiter only to wet signal (so Dry
-          // stays untouched) Bypass safety if signal is low enough to save CPU
-          // and maximize transparency
+          // Safety Guard A (Octaver Wet Airbag):
+          // Only engages if the pitch-shifter misbehaves and throws peaks >
+          // 0.95. Transparent in normal use, prevents cascading "snow"
+          // artifacts.
           if (std::abs(wet) > 0.95f) {
             float x = wet * preClipGain;
             if (!std::isfinite(x))
