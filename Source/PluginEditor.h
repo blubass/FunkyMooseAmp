@@ -27,6 +27,13 @@ private:
   struct SimpleVUMeter : public juce::Component {
     explicit SimpleVUMeter(FunkyMooseAudioProcessorEditor &o) : owner(o) {}
 
+    void setGRMode(bool b) { isGR = b; }
+
+    void setVertical(bool b) {
+      isVertical = b;
+      repaint();
+    }
+
     void setLevel(float lin) {
       level = juce::jlimit(0.0f, 1.0f, lin);
 
@@ -65,17 +72,14 @@ private:
       // 2. LED Segments
       auto inner = r.reduced(4.0f, 4.0f); // Padding inside glass
 
-      // High-Res Metering (User Request: "Feinere Staffelung")
+      // High-Res Metering
       const int numSegments = 48;
       const float gap = 0.8f;
-      const float segWidth =
-          (inner.getWidth() - (float)(numSegments - 1) * gap) /
-          (float)numSegments;
 
       // Map linear -> Log/VU curve
       const float vu = std::pow(level, 0.5f); // 0.0 -> 1.0
 
-      // Colors - "Elch Glow" (Orange -> Cyan) as requested
+      // Colors - "Elch Glow" (Orange -> Cyan)
       const juce::Colour cOrange =
           juce::Colour(0xffff9900);                        // Warm Orange / Gold
       const juce::Colour cCyan = juce::Colour(0xff00ffff); // Electric Cyan
@@ -89,11 +93,41 @@ private:
             cOrange.interpolatedWith(cCyan, std::pow(pos, 1.5f));
 
         // Is this segment active?
-        bool active = (pos <= vu);
+        bool active = false;
+        if (isVertical) {
+          if (isGR) {
+            // Vertical GR: Top -> Bottom (Top is 0dB, Bottom is -inf)
+            // But GR meters usually start from top-down.
+            // Let's say top is 1.0 (no reduction), bottom is 0.0 (max
+            // reduction).
+            active = ((1.0f - pos) <= (1.0f - level));
+          } else {
+            // Vertical VU: Bottom -> Top
+            active = (pos <= vu);
+          }
+        } else {
+          if (isGR) {
+            // Horizontal GR: Right -> Left
+            // 1.0 = no reduction (0 LEDS), 0.0 = max reduction (ALL LEDS)
+            active = ((1.0f - pos) <= (1.0f - level));
+          } else {
+            // Horizontal VU: Left -> Right
+            active = (pos <= vu);
+          }
+        }
 
-        float x = inner.getX() + i * (segWidth + gap);
-        juce::Rectangle<float> segRect(x, inner.getY(), segWidth,
-                                       inner.getHeight());
+        juce::Rectangle<float> segRect;
+        if (isVertical) {
+          float segH = (inner.getHeight() - (float)(numSegments - 1) * gap) /
+                       numSegments;
+          float y = inner.getBottom() - (i + 1) * (segH + gap) + gap;
+          segRect = {inner.getX(), y, inner.getWidth(), segH};
+        } else {
+          float segW =
+              (inner.getWidth() - (float)(numSegments - 1) * gap) / numSegments;
+          float x = inner.getX() + i * (segW + gap);
+          segRect = {x, inner.getY(), segW, inner.getHeight()};
+        }
 
         if (active) {
           // ACTIVE: Bright & Glowing
@@ -102,7 +136,8 @@ private:
 
           // Core of LED (Brighter)
           g.setColour(juce::Colours::white.withAlpha(0.4f));
-          g.fillRect(segRect.reduced(0.5f, 1.0f));
+          g.fillRect(segRect.reduced(isVertical ? 1.0f : 0.5f,
+                                     isVertical ? 0.5f : 1.0f));
 
         } else {
           // Subtle afterglow for segments just below current level
@@ -127,10 +162,18 @@ private:
         int peakIdx = (int)(peakVu * (numSegments - 1));
         peakIdx = juce::jlimit(0, numSegments - 1, peakIdx);
 
-        float px = inner.getX() + peakIdx * (segWidth + gap);
-        juce::Rectangle<float> pRect(px, inner.getY(), segWidth,
-                                     inner.getHeight());
-
+        juce::Rectangle<float> pRect;
+        if (isVertical) {
+          float segH = (inner.getHeight() - (float)(numSegments - 1) * gap) /
+                       numSegments;
+          float y = inner.getBottom() - (peakIdx + 1) * (segH + gap) + gap;
+          pRect = {inner.getX(), y, inner.getWidth(), segH};
+        } else {
+          float segW =
+              (inner.getWidth() - (float)(numSegments - 1) * gap) / numSegments;
+          float x = inner.getX() + peakIdx * (segW + gap);
+          pRect = {x, inner.getY(), segW, inner.getHeight()};
+        }
         g.setColour(juce::Colours::white.withAlpha(0.95f)); // White peak
         g.fillRect(pRect);
       }
@@ -139,6 +182,8 @@ private:
     float level = 0.0f;
     float peak = 0.0f;
     int peakHoldFrames = 0;
+    bool isGR = false;
+    bool isVertical = false;
     FunkyMooseAudioProcessorEditor &owner;
   };
 
@@ -265,7 +310,7 @@ private:
   juce::ToggleButton compAutoMakeupToggle{"AUTO"};
   juce::ToggleButton octOn, envOn, phaserOn, chorusOn,
       fxParallelToggle{"PARALLEL"}; // New
-  
+
   juce::ToggleButton masterOn;
 
   // Preset & Skin UI
@@ -277,6 +322,7 @@ private:
 
   // Big meter (top)
   SimpleVUMeter inVu;
+  SimpleVUMeter compGr;
   juce::ToggleButton autoGateToggle{"AUTO GATE"};
 
   // Bottom right: output VU + Elch

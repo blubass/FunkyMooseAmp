@@ -9,8 +9,13 @@ static void initKnob(juce::Slider &s) {
 
 FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
     FunkyMooseAudioProcessor &p)
-    : juce::AudioProcessorEditor(&p), processor(p), inVu(*this), outVu(*this) {
+    : juce::AudioProcessorEditor(&p), processor(p), inVu(*this), outVu(*this),
+      compGr(*this) {
   setLookAndFeel(&lookAndFeel);
+
+  compGr.setGRMode(true);
+  compGr.setVertical(true);
+  content.addAndMakeVisible(compGr);
 
   // Helper: load an image by trying multiple BinaryData resource names.
   // (The generated symbol name depends on the original filename.)
@@ -2100,7 +2105,12 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
   // Row 1: Input | Threshold | Ratio
   // Row 2: Makeup | Attack | Release
 
-  auto area = r.reduced(10.0f);
+  auto area = r;
+  // Shift controls more to the left to clear the vertical GR meter AND the
+  // ON/OFF toggle on the right
+  area.removeFromLeft(52.0f);
+  area.removeFromRight(
+      12.0f); // Extra breathing room for the right-side toggles
 
   // Reserve space for labels on the bottom row to prevent cutoff
   area.removeFromBottom(20.0f);
@@ -2127,6 +2137,10 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
     float cx = slotX + wSlot * 0.5f;
     float cy = slotY + rowH * 0.5f;
 
+    // Shift the right-most column (Punch/Ratio/Release) a bit more left
+    if (col == 2)
+      cx -= 15.0f;
+
     // For combo box (Ratio)
     if (&c == &ratioBox) {
       c.setBounds((int)(cx - 48.0f), (int)(cy - 26.0f), 96, 24);
@@ -2152,7 +2166,8 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
     // Apply same row 0 shift
     float slotY = area.getY() + 0 * rowH - 24.0f;
 
-    float cx = slotX + wSlot * 0.5f;
+    float cx =
+        slotX + wSlot * 0.5f - 15.0f; // Matching the shift from placeInSlot
     float cy = slotY + rowH * 0.5f;
     // Position Punch button lower, below the Ratio box
     punchButton.setBounds((int)(cx - 48.0f), (int)(cy + 8.0f), 96, 28);
@@ -2171,6 +2186,13 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
     auto toggleRectBottom =
         foot.removeFromRight(44.0f).reduced(0, 4.0f).translated(0, -6.0f);
     compAutoMakeupToggle.setBounds(toggleRectBottom.toNearestInt());
+
+    // GR Meter: Vertical on the Left (Stronger Presence)
+    float grW = 32.0f;
+    float grH = L.comp.getHeight() - 110.0f;
+    float grX = L.comp.getX() + 14.0f;
+    float grY = L.comp.getY() + 65.0f;
+    compGr.setBounds((int)grX, (int)grY, (int)grW, (int)grH);
   }
 }
 
@@ -2298,6 +2320,13 @@ void FunkyMooseAudioProcessorEditor::openIrChooser() {
 }
 
 void FunkyMooseAudioProcessorEditor::timerCallback() {
+  inVu.setLevel(processor.getInRms());
+  outVu.setLevel(processor.getOutRms());
+
+  // Update Compressor GR Meter
+  compGr.setLevel(juce::Decibels::decibelsToGain(
+      processor.dspChain.getCompressor().getGainReductionDb()));
+
   // Sync Tube Sat Indicator (Instant rise, slow fall)
   float peak = processor.getSaturationLevel();
   if (peak > tubeSatVisual)

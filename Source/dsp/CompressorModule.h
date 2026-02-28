@@ -31,6 +31,9 @@ public:
     punchPresence.prepare(spec);
     updatePunchFilters();
 
+    enableSm.reset(sr, 0.05); // 50ms transition
+    enableSm.setCurrentAndTargetValue(compOn ? 1.0f : 0.0f);
+
     prepared = true;
   }
 
@@ -45,7 +48,10 @@ public:
   }
 
   // Parameters (existing mapping compatibility)
-  void setCompOn(bool b) { compOn = b; }
+  void setCompOn(bool b) {
+    compOn = b;
+    enableSm.setTargetValue(b ? 1.0f : 0.0f);
+  }
   void setThresholdDb(float db) {
     thresholdDb = db;
     thresholdLin = juce::Decibels::decibelsToGain(db);
@@ -87,7 +93,7 @@ public:
 
   template <typename ProcessContext>
   void process(const ProcessContext &context) noexcept {
-    if (context.isBypassed || !compOn || !prepared) {
+    if (context.isBypassed || !prepared) {
       grDbMeter.store(0.0f);
       scEnv = 0.0f;
       gr = 1.0f;
@@ -97,6 +103,14 @@ public:
     auto block = context.getOutputBlock();
     const int numSamples = (int)block.getNumSamples();
     const int numCh = (int)block.getNumChannels();
+
+    // If completely off AND fade finished, just clear meter and return
+    if (!compOn && enableSm.getCurrentValue() < 0.0001f) {
+      grDbMeter.store(0.0f);
+      scEnv = 0.0f;
+      gr = 1.0f;
+      return;
+    }
     if (numSamples <= 0 || numCh <= 0)
       return;
 
@@ -142,9 +156,14 @@ public:
 
       // Apply to all channels
       const float totalGain = gr * makeupLin;
+      const float mix = enableSm.getNextValue();
+
       for (int ch = 0; ch < numCh; ++ch) {
         float *ptr = block.getChannelPointer((size_t)ch);
-        float out = ptr[n] * totalGain;
+        float dry = ptr[n];
+        float wet = dry * totalGain;
+
+        float out = dry + (wet - dry) * mix;
         if (!std::isfinite(out))
           out = 0.0f;
         ptr[n] = out;
@@ -243,4 +262,5 @@ private:
 
   juce::IIRFilter scHPF;
   std::atomic<float> grDbMeter{0.0f};
+  juce::SmoothedValue<float> enableSm;
 };

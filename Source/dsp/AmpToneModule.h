@@ -98,6 +98,12 @@ public:
     sagModule.setSagAmount(0.08f);
     sagModule.setReleaseMs(120.0f);
 
+    // Oversampling 2x (Quality vs CPU balance)
+    oversampler = std::make_unique<juce::dsp::Oversampling<float>>(
+        spec.numChannels, 1,
+        juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, true, true);
+    oversampler->initProcessing(spec.maximumBlockSize);
+
     scratchBuffer.setSize(spec.numChannels, spec.maximumBlockSize);
 
     prepared = true;
@@ -183,26 +189,31 @@ public:
       for (int ch = 0; ch < numCh; ++ch)
         scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
 
-      // --- MOOSE PREAMP: Transformer Feel ---
+      // --- MOOSE PREAMP: Transformer Feel with 2x Oversampling ---
       float peak = 0.0f;
 
-      // Pre-Saturation Filters
+      // Pre-Saturation Filters (at base rate for efficiency)
       preHPF.process(ctx);
       prePresence.process(ctx);
 
+      // Upsample saturation stage
+      auto oversampledBlock = oversampler->processSamplesUp(block);
+      const int osSamples = (int)oversampledBlock.getNumSamples();
+
       for (int ch = 0; ch < numCh; ++ch) {
-        float *d = block.getChannelPointer(ch);
+        float *osData = oversampledBlock.getChannelPointer(ch);
         float channelDcFilter = dcFilter[ch];
 
-        for (int i = 0; i < numSamples; ++i) {
-          float x = d[i] * inputGainSm.getNextValue();
+        for (int i = 0; i < osSamples; ++i) {
+          // Note: Smoothers are called more frequently in OS stage
+          float x = osData[i] * inputGainSm.getNextValue();
           const float dryPreSat = x;
 
           // Tube Saturation (More aggressive, asymmetric for 'Tube' feel)
           const float drive = saturationDrive * 1.5f;
           float hb = x * drive;
 
-          // Asymmetric shaper (Tubes are often asymmetric)
+          // Asymmetric shaper
           const float tubeBias = 0.15f;
           float y = std::tanh(hb + tubeBias) - std::tanh(tubeBias);
 
@@ -210,15 +221,16 @@ public:
           y += 0.06f * (hb * hb) + 0.04f * (hb * hb * hb);
 
           // DC Removal (1-pole HPF @ 5 Hz)
-          channelDcFilter += (y - channelDcFilter) * dcRemovalCoeff;
+          channelDcFilter += (y - channelDcFilter) *
+                             (dcRemovalCoeff * 0.5f); // Half coeff for 2x rate
           y -= channelDcFilter;
 
           // Mix Tube Saturation (Smoothed)
           const float currentTubeOn = tubeOnSm.getNextValue();
           y = dryPreSat + (y - dryPreSat) * currentTubeOn;
 
-          // Slight volume compensation (saturation usually compresses)
-          d[i] = y * (0.85f - (currentTubeOn * 0.05f));
+          // Saturator compressed output
+          osData[i] = y * (0.85f - (currentTubeOn * 0.05f));
 
           float absY = std::abs(y);
           if (absY > peak)
@@ -226,6 +238,9 @@ public:
         }
         dcFilter[ch] = channelDcFilter;
       }
+
+      // Downsample back to base rate
+      oversampler->processSamplesDown(block);
 
       // Apply Sag
       sagModule.process(ctx);
@@ -245,8 +260,27 @@ public:
       mid.process(ctx);
       treble.process(ctx);
 
-      // Always process Slap filter, but it will be neutral if slapMixSm is 0
-      slap.process(ctx);
+      // Apply Slap filter with sample-accurate crossfade (prevents clicks)
+      // 1. Use the pre-existing scratchBuffer as dry signal (it was captured at
+      // line 190)
+      // However, we need the state *after* tone stack but *before* slap.
+      // So let's capture it HERE into a temporary local if scratch is occupied.
+      // Actually, scratch is fine to reuse if we don't need the PRE-sat dry
+      // anymore.
+      // But let's just use it.
+      for (int ch = 0; ch < numCh; ++ch)
+        scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
+
+      slap.process(ctx); // Block is now wet
+
+      for (int i = 0; i < numSamples; ++i) {
+        float mix = slapMixSm.getNextValue();
+        for (int ch = 0; ch < numCh; ++ch) {
+          float dry = scratchBuffer.getSample(ch, i);
+          float *wet = block.getChannelPointer(ch);
+          wet[i] = dry + (wet[i] - dry) * mix;
+        }
+      }
 
       // Auto-Gain Compensation
       if (autoGainEnabled) {
@@ -306,10 +340,10 @@ private:
     *mid.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
         sampleRate, 550.0, 0.7, juce::Decibels::decibelsToGain(m));
 
-    // Slap Scoop: Smooth the gain from 0dB to -12dB based on sMix
-    float slapGainDb = sMix * -12.0f;
+    // Slap Scoop: Keep filter active at target setting, mix handled in
+    // process()
     *slap.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-        sampleRate, 500.0f, 1.0f, juce::Decibels::decibelsToGain(slapGainDb));
+        sampleRate, 500.0f, 1.0f, juce::Decibels::decibelsToGain(-12.0f));
 
     float finalTrebleDb = t + (sMix * 5.0f);
     *treble.state = *juce::dsp::IIR::Coefficients<float>::makeHighShelf(
@@ -367,4 +401,7 @@ private:
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> midDbSm{0.0f};
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> trebleDbSm{
       0.0f};
+
+  // Oversampling (2x) for high-quality saturation
+  std::unique_ptr<juce::dsp::Oversampling<float>> oversampler;
 };
