@@ -683,10 +683,11 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   g.setGradientFill(metalGrad);
   g.fillRect(plateArea);
 
-  juce::ColourGradient vignette(juce::Colours::transparentBlack,
-                                plateArea.getCentreX(), plateArea.getCentreY(),
-                                juce::Colours::black.withAlpha(0.5f),
-                                plateArea.getX(), plateArea.getY(), true);
+  juce::ColourGradient vignette(
+      juce::Colours::transparentBlack, plateArea.getCentreX(),
+      plateArea.getCentreY(),
+      juce::Colours::black.withAlpha(0.75f), // Darker vignette for global depth
+      plateArea.getX(), plateArea.getY(), true);
 
   g.setGradientFill(vignette);
   g.fillRect(plateArea);
@@ -945,8 +946,9 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       // (Hyper-realistic glass logic follows above)
 
       // Subtle Inner Shadow for Depth (Intensity ramped up for 3D)
-      float innerShadowAlpha = (depthBias < 0.0f) ? 0.65f : 0.45f;
-      for (float i = 0.5f; i <= 5.5f; i += 1.0f) {
+      float innerShadowAlpha =
+          (depthBias < 0.0f) ? 0.75f : 0.60f;      // Deeper inner shadow
+      for (float i = 0.5f; i <= 6.5f; i += 1.0f) { // Wider spread
         g.setColour(juce::Colours::black.withAlpha(innerShadowAlpha / i));
         g.drawRoundedRectangle(r.reduced(i), curRadius, 1.0f);
       }
@@ -986,11 +988,15 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     // 2. Ambient Occlusion (Soft layered shadow for weight - Modulated by
     // bias)
     float aoBase =
-        (depthBias > 0.0f) ? 0.65f : ((depthBias < 0.0f) ? 0.15f : 0.45f);
+        (depthBias > 0.0f)
+            ? 0.8f
+            : ((depthBias < 0.0f) ? 0.25f
+                                  : 0.6f); // Stronger shadows under modules
     g.setColour(juce::Colours::black.withAlpha(aoBase));
-    for (int i = 1; i <= 8; i += 2) {
-      float ext = (depthBias > 0.0f) ? (i * 0.6f) : (i * 0.4f);
-      g.drawRoundedRectangle(r.expanded(ext).translated(i, i), curRadius, 2.5f);
+    for (int i = 1; i <= 10; i += 2) { // Increased spread
+      float ext = (depthBias > 0.0f) ? (i * 0.7f) : (i * 0.5f);
+      g.drawRoundedRectangle(r.expanded(ext).translated(i, i), curRadius,
+                             3.0f); // Heavier shadow blur
     }
 
     // 3. Sculpted Frame Body (12px Heavy Metal) - Neutral Silver/Steel
@@ -2198,9 +2204,9 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
 
     // GR Meter: Vertical on the Left (Maximum Analog Height)
     float grW = 32.0f;
-    float grH = L.comp.getHeight() - 100.0f; // Even longer
+    float grH = L.comp.getHeight() - 90.0f; // Extended 10px higher
     float grX = L.comp.getX() + 14.0f;
-    float grY = L.comp.getY() + 55.0f; // Pulled higher
+    float grY = L.comp.getY() + 50.0f; // Pulled 5px higher
     compGr.setBounds((int)grX, (int)grY, (int)grW, (int)grH);
   }
 }
