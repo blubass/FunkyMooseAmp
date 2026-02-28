@@ -34,21 +34,21 @@ public:
       OutputModule; // OutputModule handles gain + safety clip + metering
 
   // The Processor Chain
-  // Structure: Input -> Gate (0) -> Compressor (1) -> OctEnv (2) -> LowCut (3)
-  // -> Gain (4)
+  // Structure: InputGain (0) -> SmartGate (1) -> Compressor (2) -> OctEnv (3)
+  // -> LowCut (4)
   // -> Amp (Oversampled) (5) -> Mojo (6) -> ModFX (7) -> Cab (Base) (8) ->
   // Output (9)
   using Chain =
-      juce::dsp::ProcessorChain<SmartGateBlock, Compressor, OctEnv, LowCut,
-                                InputGain, Amp, Mojo, ModFX, Cab, OutputGain>;
+      juce::dsp::ProcessorChain<InputGain, SmartGateBlock, Compressor, OctEnv,
+                                LowCut, Amp, Mojo, ModFX, Cab, OutputGain>;
 
   MooseDSPChain() = default;
 
   void prepare(const juce::dsp::ProcessSpec &spec) {
     chain.prepare(spec);
 
-    // Ramping for InputGain (juce::dsp::Gain) - Index 4
-    chain.get<4>().setRampDurationSeconds(0.05);
+    // Ramping for InputGain (juce::dsp::Gain) - Index 0
+    chain.get<0>().setRampDurationSeconds(0.05);
   }
 
   void reset() { chain.reset(); }
@@ -58,27 +58,28 @@ public:
   }
 
   float getLatency() const {
-    // Sum latencies: OctEnv (Index 2), AmpBlock (Index 5) and Mojo (Index 6)
-    return (float)chain.get<2>().getLatencyInSamples() +
+    // Sum latencies: OctEnv (Index 3), AmpBlock (Index 5) and Mojo (Index 6)
+    return (float)chain.get<3>().getLatencyInSamples() +
            chain.get<5>().getLatency() +
            (float)chain.get<6>().getLatencyInSamples();
   }
 
   // Accessors to modules for parameter updates
-  SmartGate &getSmartGate() { return chain.get<0>(); }
-  const SmartGate &getSmartGate() const { return chain.get<0>(); }
+  // Accessors to modules for parameter updates
+  InputGain &getInputGain() { return chain.get<0>(); }
+  const InputGain &getInputGain() const { return chain.get<0>(); }
 
-  Compressor &getCompressor() { return chain.get<1>(); }
-  const Compressor &getCompressor() const { return chain.get<1>(); }
+  SmartGate &getSmartGate() { return chain.get<1>(); }
+  const SmartGate &getSmartGate() const { return chain.get<1>(); }
 
-  OctEnv &getOctEnv() { return chain.get<2>(); }
-  const OctEnv &getOctEnv() const { return chain.get<2>(); }
+  Compressor &getCompressor() { return chain.get<2>(); }
+  const Compressor &getCompressor() const { return chain.get<2>(); }
 
-  LowCut &getLowCut() { return chain.get<3>(); }
-  void setLowCutBypassed(bool b) { chain.setBypassed<3>(b); }
+  OctEnv &getOctEnv() { return chain.get<3>(); }
+  const OctEnv &getOctEnv() const { return chain.get<3>(); }
 
-  InputGain &getInputGain() { return chain.get<4>(); }
-  const InputGain &getInputGain() const { return chain.get<4>(); }
+  LowCut &getLowCut() { return chain.get<4>(); }
+  void setLowCutBypassed(bool b) { chain.setBypassed<4>(b); }
 
   AmpBlock &getAmpBlock() { return chain.get<5>(); }
   AmpToneModule &getAmpTone() { return chain.get<5>().getAmp(); }
