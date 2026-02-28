@@ -121,18 +121,21 @@ public:
 
         // Mixing logic
         float dryWeight = 1.0f - (sMix * 0.5f);
-        float wetWeight =
-            sMix *
-            1.05f; // Reduced from 1.2f to avoid "buzz" and maintain headroom
+        float wetWeight = sMix * 1.05f;
+
+        const float preClipGain = juce::Decibels::decibelsToGain(-3.0f);
+        const float clipK = 2.0f; // Softness factor for Tanh
 
         for (int ch = 0; ch < chs; ++ch) {
           float dry = buffer.getSample(ch, i);
           float out = (dry * dryWeight) + (wetSignal * wetWeight);
 
-          // Transparent safety clip
-          if (std::abs(out) > 0.98f)
-            out = (out > 0) ? 0.98f + (out - 0.98f) * 0.1f
-                            : -0.98f + (out + 0.98f) * 0.1f;
+          // Apply clean Soft-Clip / Safety Limiter (Tanh Option A) to protect
+          // the Amp
+          float x = out * preClipGain;
+          if (!std::isfinite(x))
+            x = 0.0f;
+          out = softClipTanh(x, clipK);
 
           buffer.setSample(ch, i, out);
         }
@@ -175,6 +178,11 @@ public:
   }
 
 private:
+  static inline float softClipTanh(float x, float k) noexcept {
+    const float a = std::tanh(k);
+    return std::tanh(k * x) / (a != 0.0f ? a : 1.0f);
+  }
+
   void ensureScratch(int needed) {
     if (needed <= maxBlockSize)
       return;
