@@ -305,7 +305,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     const bool envOn = envOnParam->load() > 0.5f;
 
     const bool anyActive = octOn || envOn;
-    dspChain.setBypassedAndReset<2>(!anyActive);
+    dspChain.setBypassedAndReset<3>(!anyActive);
 
     octEnv.setOctaveOn(octOn);
     octEnv.setEnvelopeOn(envOn);
@@ -320,7 +320,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // 1.5 Smart Gate
   {
     const bool gateOn = autoGateParam->load() > 0.5f;
-    dspChain.setBypassed<0>(!gateOn);
+    dspChain.setBypassed<1>(!gateOn);
     dspChain.getSmartGate().setEnabled(gateOn);
   }
 
@@ -343,7 +343,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // LowCut
     const bool lcOn = lowCutOnParam->load() > 0.5f;
-    dspChain.setBypassed<3>(!lcOn);
+    dspChain.setBypassed<4>(!lcOn);
 
     // Auto-Gain
     amp.setAutoGain(ampAutoGainParam->load() > 0.5f);
@@ -354,7 +354,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto &comp = dspChain.getCompressor();
     const bool compOn = compOnParam->load() > 0.5f;
 
-    dspChain.setBypassedAndReset<1>(!compOn);
+    dspChain.setBypassedAndReset<2>(!compOn);
 
     comp.setCompOn(compOn);
     comp.setThresholdDb(compThreshParam->load());
