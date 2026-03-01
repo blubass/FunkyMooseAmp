@@ -50,6 +50,7 @@ public:
   void setAutoGain(bool enabled) noexcept { autoGainEnabled = enabled; }
   void setGainDecibels(float db) noexcept { outDb = db; }
   void setSafetyClipThreshold(float th) noexcept { safetyClipThreshold = th; }
+  void resetAutoGainComp() noexcept { autoGainComp = 1.0f; }
 
   // Thread-safe access for UI
   float getInRms() const noexcept {

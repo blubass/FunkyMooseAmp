@@ -100,6 +100,7 @@ public:
   bool lastMojoOn = true;
   bool lastLowCutOn = false;
   bool lastMonoMakerOn = true;
+  bool lastAutoGainState = false;
 
   std::atomic<float> cpuUsage{0.0f};
 

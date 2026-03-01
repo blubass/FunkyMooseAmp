@@ -1,0 +1,31 @@
+🫎 Funky Moose Amp - Installation & macOS Security Guide 🫎
+
+Since this plugin is built by an independent developer (without a paid Apple Developer account), macOS will show a security warning ("Developer cannot be verified") when you first try to open it.
+
+Don't worry, it's perfectly safe! Here is how to get the Moose running:
+
+---
+
+1. INSTALLATION:
+   Drag the desired formats (VST3, AU/Component, or App) onto the corresponding folder aliases in the window.
+
+2. FIRST OPEN (Bypass Gatekeeper):
+   - Go to your Applications (or Plug-Ins) folder.
+   - RIGHT-CLICK (or Ctrl + Click) on "Funky Moose Amp".
+   - Select "Open" from the menu.
+   - A dialog will appear. Click "Open" (or "Open anyway").
+   - macOS will now remember your choice, and the plugin will start normally from now on.
+
+3. IF IT STILL DOESN'T OPEN:
+   - Go to macOS "System Settings" -> "Privacy & Security".
+   - Scroll to the bottom. You should see: "'Funky Moose Amp' was blocked...".
+   - Click "Open Anyway".
+
+4. FOR PRO MOOSES (Terminal Command):
+   If you want to clear the warning for good via Terminal:
+   sudo xattr -rd com.apple.quarantine /Library/Audio/Plug-Ins/Components/Funky\ Moose\ Amp.component
+   (Enter your password, hit Enter - done.)
+
+---
+🎸 Enjoy the tone! 
+Stay Funky!

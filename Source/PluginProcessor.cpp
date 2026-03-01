@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <cmath>
 
 //==============================================================================
 FunkyMooseAudioProcessor::FunkyMooseAudioProcessor()
@@ -210,63 +211,99 @@ bool FunkyMooseAudioProcessor::isBusesLayoutSupported(
   const auto in = layouts.getMainInputChannelSet();
   const auto out = layouts.getMainOutputChannelSet();
 
+  // Standalone: Allow disabled input or output (very flexible)
+  if (wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
+    // Only reject if OUTPUT is disabled (we need somewhere to send audio!)
+    if (out.isDisabled())
+      return false;
+    // Input can be disabled (e.g., output-only mode or input not configured)
+    return true;
+  }
+
+  // Plugin mode: Both buses must be enabled
   if (in.isDisabled() || out.isDisabled())
     return false;
 
-  // Standalone can negotiate mono input -> stereo output
-  if (in == juce::AudioChannelSet::mono() &&
-      out == juce::AudioChannelSet::stereo())
-    return true;
-
+  // Mono/Stereo standard checks for plugins
   if (out == juce::AudioChannelSet::mono() ||
-      out == juce::AudioChannelSet::stereo())
-    return in == out;
+      out == juce::AudioChannelSet::stereo()) {
+    if (in == juce::AudioChannelSet::mono() ||
+        in == juce::AudioChannelSet::stereo())
+      return true;
+  }
 
-  return false;
+  return in == out;
 }
 
 void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
                                             juce::MidiBuffer &) {
   juce::ScopedNoDenormals noDenormals;
 
-  const bool tunerOn = (apvts.getRawParameterValue("tunerOn")->load() > 0.5f);
-  tunerIsOn.store(tunerOn, std::memory_order_relaxed);
+  const int totalIns = getTotalNumInputChannels();
+  const int totalOuts = getTotalNumOutputChannels();
+  const int bufferChannels = buffer.getNumChannels();
+  const int numSamples = buffer.getNumSamples();
 
-  const int totalNumInputChannels = getTotalNumInputChannels();
-  const int totalNumOutputChannels = getTotalNumOutputChannels();
-
-  // Clear unused channels
-  // IMPORTANT: In JUCE Standalone, the device can temporarily report 0 input
-  // channels (or no inputs enabled). If we clear using 0, we'd wipe the whole
-  // buffer and get silence.
-  if (totalNumInputChannels > 0)
-    for (int ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
-      buffer.clear(ch, 0, buffer.getNumSamples());
-
-  // Mono -> Stereo (e.g. in DAWs with 1-In/2-Out configuration)
-  if (totalNumInputChannels == 1 && buffer.getNumChannels() >= 2) {
-    buffer.copyFrom(1, 0, buffer, 0, 0, buffer.getNumSamples());
+  // Safety: If the host changed channel counts or sample rate without calling
+  // prepareToPlay, we MUST re-prepare now to avoid crashes (especially with
+  // dryBuffer and oversampling).
+  if (!mState.prepared || (int)mState.spec.numChannels < bufferChannels ||
+      mState.spec.maximumBlockSize < (juce::uint32)numSamples) {
+    prepareToPlay(getSampleRate() > 0.0 ? getSampleRate() : 44100.0,
+                  numSamples);
   }
-  // Standalone Smart Mono Summing (prevents 6dB drop if only one input is used,
-  // but avoids +6dB boost if both are used)
-  else if (wrapperType == juce::AudioProcessor::wrapperType_Standalone &&
-           buffer.getNumChannels() >= 2) {
-    const int n = buffer.getNumSamples();
-    float lMag = buffer.getMagnitude(0, 0, n);
-    float rMag = buffer.getMagnitude(1, 0, n);
 
-    // If both have significant signal (> -60dB approx), sum with 0.5.
-    // Otherwise, sum with 1.0 to keep unity gain for the active channel.
-    float smartGain = (lMag > 0.001f && rMag > 0.001f) ? 0.5f : 1.0f;
+  // 1. Mono-to-Stereo and Standalone Summing
+  // We want to ensure that no matter what, we have a signal in both L and R if
+  // possible.
+  if (wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
+    if (totalIns >= 1 && bufferChannels >= 1) {
+      // Standalone Failsafe: Scan ALL reported hardware inputs.
+      // If we find signal on ANY channel (like channel 3 or 4), sum it to our
+      // main pair.
+      bool foundAnySignal = false;
+      for (int ch = 0; ch < totalIns; ++ch) {
+        if (ch < bufferChannels &&
+            buffer.getMagnitude(ch, 0, numSamples) > 0.0001f) {
+          foundAnySignal = true;
+          if (ch > 1 && bufferChannels >= 2) {
+            // If signal is on a higher channel, add it to L/R
+            buffer.addFrom(0, 0, buffer, ch, 0, numSamples, 0.5f);
+            buffer.addFrom(1, 0, buffer, ch, 0, numSamples, 0.5f);
+          }
+        }
+      }
 
-    auto *L = buffer.getWritePointer(0);
-    auto *R = buffer.getWritePointer(1);
-    for (int i = 0; i < n; ++i) {
-      float mono = (L[i] + R[i]) * smartGain;
-      L[i] = mono;
-      R[i] = mono;
+      float lMag = buffer.getMagnitude(0, 0, numSamples);
+      float rMag =
+          (bufferChannels > 1) ? buffer.getMagnitude(1, 0, numSamples) : 0.0f;
+
+      // If we only have signal on one side, copy it to the other
+      if (lMag < 0.001f && rMag > 0.001f && bufferChannels >= 2) {
+        buffer.copyFrom(0, 0, buffer, 1, 0, numSamples);
+      } else if (rMag < 0.001f && lMag > 0.001f && bufferChannels >= 2) {
+        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+      }
+      // If we only have one input channel total, copy it to the second buffer
+      // channel
+      else if (totalIns == 1 && bufferChannels >= 2 && lMag > 0.001f) {
+        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+      }
+    }
+  } else {
+    // Normal Plugin Behavior (VST3/AU)
+    if (totalIns == 1 && bufferChannels >= 2) {
+      buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
     }
   }
+
+  // 2. Clear ONLY truly unused channels
+  for (int ch = std::max(totalIns, 2); ch < bufferChannels; ++ch) {
+    buffer.clear(ch, 0, numSamples);
+  }
+
+  const bool tunerOn = (apvts.getRawParameterValue("tunerOn")->load() > 0.5f);
+  tunerIsOn.store(tunerOn, std::memory_order_relaxed);
 
   // Tuner Tap (Pre-Gate/Amp)
   if (tunerOn) {
@@ -417,13 +454,17 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // 8. Output Gain + Master Mix
   {
     auto &out = dspChain.getOutputGain();
-    out.setGainDecibels(masterOutParam->load() + ampVolumeParam->load());
+    bool autoG = autoGainParam->load() > 0.5f;
+    if (autoG != lastAutoGainState) {
+      out.resetAutoGainComp(); // Reset to 1.0 on toggle
+      lastAutoGainState = autoG;
+    }
+    out.setAutoGain(autoG);
+    out.setGainDecibels(masterOutParam->load());
     out.setSafetyClipThreshold(0.99f);
 
     out.setMonoMakerFreq(monoMakerParam->load());
-    bool mmOn = monoMakerOnParam->load() > 0.5f;
-    out.setMonoMakerEnabled(mmOn);
-    out.setAutoGain(autoGainParam->load() > 0.5f);
+    out.setMonoMakerEnabled(monoMakerOnParam->load() > 0.5f);
   }
 
   // ===== PROCESS =====
@@ -459,7 +500,8 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // This is acceptable behavior for "Mix".
 
   float mixVal = apvts.getRawParameterValue("masterMix")->load() / 100.0f;
-  if (mixVal < 0.999f) {
+  if (mixVal < 0.999f &&
+      dryBuffer.getNumChannels() >= buffer.getNumChannels()) {
     const float wetGain = std::sqrt(mixVal);
     const float dryGain = std::sqrt(1.0f - mixVal); // Equal power crossfade
 
@@ -1286,15 +1328,15 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
   }
 
   if (presetName == "Default") {
-    setVal("ampBass", 3.089509963989258f);
-    setVal("ampGain", 8.000000953674316f);
-    setVal("ampMid", -2.295962333679199f);
+    setVal("ampBass", 0.0f);
+    setVal("ampGain", -6.0f);
+    setVal("ampMid", 0.0f);
     setVal("ampOn", 1.0f);
-    setVal("ampTreble", 2.710419416427612f);
-    setVal("ampVolume", 3.576278686523438e-07f);
-    setVal("chDepth", 0.550000011920929f);
+    setVal("ampTreble", 0.0f);
+    setVal("ampVolume", 3.0f);
+    setVal("chDepth", 0.55f);
     setVal("chMix", 0.0f);
-    setVal("chRate", 0.3499999940395355f);
+    setVal("chRate", 0.35f);
     setVal("chorusOn", 0.0f);
     setVal("compAttack", 10.0f);
     setVal("compInput", 0.0f);
@@ -1302,32 +1344,32 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("compOn", 1.0f);
     setVal("compRatio", 0.0f);
     setVal("compRelease", 120.0f);
-    setVal("compThresh", -10.08506679534912f);
+    setVal("compThresh", -18.0f);
     setVal("envAttack", 0.25f);
-    setVal("envDecay", 0.3499999940395355f);
+    setVal("envDecay", 0.35f);
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
-    setVal("masterOut", 1.788139343261719e-06f);
+    setVal("masterOut", 0.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
     setVal("octModern", 1.0f);
     setVal("octOn", 0.0f);
-    setVal("phColour", 0.550000011920929f);
+    setVal("phColour", 0.55f);
     setVal("phMix", 0.0f);
-    setVal("phRate", 0.449999988079071f);
+    setVal("phRate", 0.45f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
     setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 0.0f);
-    setVal("cabType", 0.0f);
+    setVal("cabType", 1.0f); // 4x10 ON by default
     setVal("masterMix", 100.0f);
     setVal("bypass", 0.0f);
-    setVal("autoGain", 1.0f);
+    setVal("autoGain", 0.0f); // DISABLED by default to prevent "silent traps"
     setVal("fxParallel", 0.0f);
-    setVal("monoMaker", 400.0f);
-    setVal("lowCutOn", 1.0f);
+    setVal("monoMaker", 20.0f);
+    setVal("lowCutOn", 0.0f);
     setVal("monoMakerOn", 1.0f);
     setVal("ampAutoGain", 1.0f);
     setVal("compAutoMakeup", 1.0f);
