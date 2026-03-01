@@ -27,6 +27,9 @@ add_subdirectory(JUCE)
 # ---- Icon Setup ----
 if (APPLE)
     set(FUNKY_ICON_ARG ICON_BIG "Source/Assets/FunkyMoose.icns")
+elseif (WIN32)
+    set(FUNKY_ICON_ARG ICON_BIG "Source/Assets/elch_vintage.png"
+                       ICON_SMALL "Source/Assets/elch_vintage.png")
 else()
     set(FUNKY_ICON_ARG "")
 endif()

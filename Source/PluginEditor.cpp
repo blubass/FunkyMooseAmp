@@ -446,6 +446,12 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   updateStaticBackground();
   updateGlowCaches();
+
+  // Allow the standalone window to be resized freely
+  setResizable(true, true);
+  setResizeLimits(800, 300, 4096, 2048);
+  setSize(designW / 2, designH / 2); // Default: half of design size
+
   startTimerHz(30);
 }
 
