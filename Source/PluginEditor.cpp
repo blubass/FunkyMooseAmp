@@ -11,7 +11,12 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
     FunkyMooseAudioProcessor &p)
     : juce::AudioProcessorEditor(&p), processor(p), inVu(*this), outVu(*this),
       compGr(*this) {
+  // 1. Initialize Palette and LookAndFeel FIRST
+  const int skinIndex = 0;
+  currentPalette = Skins::getPalette(skinIndex);
   setLookAndFeel(&lookAndFeel);
+  lookAndFeel.setColors(currentPalette.accent, currentPalette.knob,
+                        currentPalette.knobIndicator);
 
   inVu.meterLabel = "INPUT";
   outVu.meterLabel = "OUTPUT";
@@ -332,14 +337,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   auto &ts = processor.apvts;
 
-  // Default Skin: 0 (Classic / Ampeg Black)
-  const int skinIndex = 0;
-
-  currentPalette = Skins::getPalette(skinIndex);
-
   // Set L&F colors immediately
-  lookAndFeel.setColors(currentPalette.accent, currentPalette.knob,
-                        currentPalette.knobIndicator);
   elch.setColors(currentPalette.elchEye, currentPalette.elchGlow);
   elch.setBackgroundColor(currentPalette.accent.darker().withAlpha(0.2f));
 
@@ -348,23 +346,31 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
       BinaryData::elch_vintage_png, BinaryData::elch_vintage_pngSize);
   elch.setElchImage(elchImg);
 
-  auto rawFrame = juce::ImageCache::getFromMemory(
-      BinaryData::FrameOverlay_png, BinaryData::FrameOverlay_pngSize);
+  {
+    auto rawFrame = juce::ImageCache::getFromMemory(
+        BinaryData::FrameOverlay_png, BinaryData::FrameOverlay_pngSize);
 
-  if (rawFrame.isValid()) {
-    juce::Image frameImg = rawFrame.createCopy();
-    juce::Image::BitmapData data(frameImg, juce::Image::BitmapData::readWrite);
-    for (int y = 0; y < data.height; ++y) {
-      for (int x = 0; x < data.width; ++x) {
-        auto c = data.getPixelColour(x, y);
-        if (c.getBrightness() > 0.9f && c.getSaturation() < 0.1f) {
-          data.setPixelColour(x, y, juce::Colours::transparentBlack);
+    if (rawFrame.isValid()) {
+      // Convert to ARGB so we can write alpha values
+      juce::Image frameImg = rawFrame.convertedToFormat(juce::Image::ARGB);
+      {
+        juce::Image::BitmapData data(frameImg,
+                                     juce::Image::BitmapData::readWrite);
+        for (int y = 0; y < data.height; ++y) {
+          for (int x = 0; x < data.width; ++x) {
+            auto c = data.getPixelColour(x, y);
+            // Make white/near-white interior pixels transparent
+            // Keep dark frame pixels opaque
+            if (c.getBrightness() > 0.85f) {
+              data.setPixelColour(x, y, juce::Colours::transparentBlack);
+            }
+          }
         }
       }
+      overlayComp.setImage(frameImg);
+    } else {
+      overlayComp.setImage(juce::Image());
     }
-    overlayComp.setImage(frameImg);
-  } else {
-    overlayComp.setImage(juce::Image());
   }
 
   // Amp
@@ -438,6 +444,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
     };
   }
 
+  updateStaticBackground();
   updateGlowCaches();
   startTimerHz(30);
 }
@@ -1440,7 +1447,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   }
   labelSubToggle(autoGateToggle, "GATE");
   labelSubToggle(compAutoMakeupToggle, "AUTO");
-  labelToggle(monoMakerToggle);
+  labelSubToggle(monoMakerToggle, "ON");
   // Auto Gain below the switch (Master section)
   {
     auto b = autoGainToggle.getBounds().toFloat();
@@ -1609,11 +1616,14 @@ void FunkyMooseAudioProcessorEditor::updateGlowCaches() {
 }
 
 void FunkyMooseAudioProcessorEditor::paintContent(juce::Graphics &g) {
-  // 1. Draw Cached Static Background (Zero CPU)
-  if (cachedContentBackground.isValid())
+  // 1. Draw Cached Static Background
+  if (cachedContentBackground.isValid() && !cachedContentBackground.isNull()) {
     g.drawImageAt(cachedContentBackground, 0, 0);
-  else
-    updateStaticBackground(); // Fallback regeneration if missing
+  } else {
+    updateStaticBackground();
+    if (cachedContentBackground.isValid())
+      g.drawImageAt(cachedContentBackground, 0, 0);
+  }
 
   // 2. Draw Dynamic Elements (Animations & Status)
   const float time = (float)juce::Time::getMillisecondCounterHiRes() * 0.001f;
@@ -1817,6 +1827,9 @@ void FunkyMooseAudioProcessorEditor::paintContent(juce::Graphics &g) {
 void FunkyMooseAudioProcessorEditor::resized() {
   auto area = getLocalBounds().toFloat();
 
+  if (area.isEmpty())
+    return;
+
   const float sx = area.getWidth() / (float)designW;
   const float sy = area.getHeight() / (float)designH;
   const float s = std::min(sx, sy);
@@ -1829,6 +1842,14 @@ void FunkyMooseAudioProcessorEditor::resized() {
   content.setTopLeftPosition((getWidth() - cw) / 2, (getHeight() - ch) / 2);
 
   content.setSize(designW, designH);
+
+  // Ensure background is valid for new size/scale
+  if (cachedContentBackground.isNull() ||
+      cachedContentBackground.getWidth() != designW ||
+      cachedContentBackground.getHeight() != designH) {
+    updateStaticBackground();
+  }
+
   overlayComp.setBounds(0, 0, designW, designH);
   elch.toFront(false);
 }
