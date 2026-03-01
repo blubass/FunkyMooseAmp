@@ -28,6 +28,13 @@ endif()
 # cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR="/path/to/JUCE/install/lib/cmake/JUCE-8.0.10"
 find_package(JUCE CONFIG REQUIRED)
 
+# ---- Icon Setup ----
+if (APPLE)
+    set(FUNKY_ICON_ARG ICON_BIG "Source/Assets/FunkyMoose.icns")
+else()
+    set(FUNKY_ICON_ARG "")
+endif()
+
 # ---- Plugin (VST3 + AU + Standalone) ----
 juce_add_plugin(FUNKY_MOOSE_AMP
     COMPANY_NAME "Funky Moose Audio"
@@ -50,7 +57,7 @@ juce_add_plugin(FUNKY_MOOSE_AMP
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "Funky Moose Amp needs access to your audio input so it can process live audio."
 
-    ICON_BIG "Source/Assets/FunkyMoose.icns"
+    ${FUNKY_ICON_ARG}
 
     COPY_PLUGIN_AFTER_BUILD TRUE
     FORMATS VST3 AU Standalone
