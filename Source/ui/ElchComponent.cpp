@@ -12,8 +12,9 @@ void ElchComponent::paint(juce::Graphics &g) {
   g.drawImageAt(cachedBackground, 0, 0);
 
   // --- CALCULATE DYNAMIC VALUES ---
-  float bright = juce::jlimit(0.0f, 3.0f, inputLevel * 2.2f + eyeAmount * 0.5f);
-  bright = std::max(bright, 0.2f);
+  float bright =
+      juce::jlimit(0.15f, 3.0f, inputLevel * 2.6f + eyeAmount * 0.6f);
+  bright = std::max(bright, 0.35f);
   float amt = juce::jlimit(0.0f, 1.0f, inputLevel * 1.8f + eyeAmount * 0.6f);
 
   // 2. Draw Elch Image (ABSOLUTE FOREGROUND - NO MASKING)
@@ -27,8 +28,8 @@ void ElchComponent::paint(juce::Graphics &g) {
     g.drawImage(elchImage, bounds, juce::RectanglePlacement::centred);
 
     // Dynamic separation highlight (Rim Light) to ensure it pops from the black
-    g.setColour(juce::Colours::white.withAlpha(0.2f * amt));
-    g.drawEllipse(bounds.reduced(2.0f), 1.0f);
+    g.setColour(juce::Colours::white.withAlpha(0.35f * amt + 0.15f));
+    g.drawEllipse(bounds.reduced(2.0f), 1.5f);
 
     g.restoreState();
   }

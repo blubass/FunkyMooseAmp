@@ -13,6 +13,10 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
       compGr(*this) {
   setLookAndFeel(&lookAndFeel);
 
+  inVu.meterLabel = "INPUT";
+  outVu.meterLabel = "OUTPUT";
+  compGr.meterLabel = "GR";
+
   compGr.setGRMode(true);
   compGr.setVertical(true);
   content.addAndMakeVisible(compGr);
@@ -660,8 +664,15 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   // Deep Corner Vignette for enclosure
   juce::ColourGradient caseV(juce::Colours::transparentBlack, area.getCentreX(),
                              area.getCentreY(),
-                             juce::Colours::black.withAlpha(0.8f), 0, 0, true);
+                             juce::Colours::black.withAlpha(0.85f), 0, 0, true);
   g.setGradientFill(caseV);
+  g.fillRect(area);
+
+  // Subtle Ambient Glow behind the whole plate
+  juce::ColourGradient ambientGlow(currentPalette.accent.withAlpha(0.06f),
+                                   area.getCentreX(), area.getCentreY(),
+                                   juce::Colours::transparentBlack, 0, 0, true);
+  g.setGradientFill(ambientGlow);
   g.fillRect(area);
 
   // 1. RECESSED PLATE AREA
@@ -716,15 +727,15 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     auto plate = L.plate;
 
     // 1. Base Metal: Physical Plate (Now dynamic via Palette)
-    juce::Colour c1 = currentPalette.plate.brighter(0.1f);
-    juce::Colour c2 = currentPalette.plate.darker(0.1f);
+    juce::Colour c1 = currentPalette.plate.brighter(0.18f);
+    juce::Colour c2 = currentPalette.plate.darker(0.18f);
 
     juce::ColourGradient cg(c1, plate.getX(), plate.getY(), c2,
                             plate.getRight(), plate.getBottom(), false);
 
     // Dynamic highlights based on palette
-    cg.addColour(0.3f, currentPalette.plate.brighter(0.15f));
-    cg.addColour(0.7f, currentPalette.plate.darker(0.05f));
+    cg.addColour(0.3f, currentPalette.plate.brighter(0.24f));
+    cg.addColour(0.7f, currentPalette.plate.darker(0.10f));
 
     g.setGradientFill(cg);
     g.fillRoundedRectangle(plate, currentPalette.cornerRadius);
@@ -800,8 +811,8 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
       g.drawEllipse(sr.reduced(0.5f), 0.5f);
 
       // --- Stronger Inner Shadow for Depth ---
-      g.setColour(juce::Colours::black.withAlpha(0.65f));
-      g.drawEllipse(sr.reduced(1.0f), 2.0f);
+      g.setColour(juce::Colours::black.withAlpha(0.85f));
+      g.drawEllipse(sr.reduced(1.0f), 2.5f);
 
       // Inner Ring Texture
       g.setColour(juce::Colours::black.withAlpha(0.4f));
@@ -1020,11 +1031,11 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.drawRoundedRectangle(r.reduced(0.8f), curRadius, 0.5f);
 
     // 5. Polished Ridge (Sharp peak edge)
-    g.setColour(juce::Colours::white.withAlpha(0.7f));
+    g.setColour(juce::Colours::white.withAlpha(0.65f));
     g.drawRoundedRectangle(r.reduced(0.5f), curRadius, 0.8f);
 
     // 6. Specular Sparkle (Sharp industrial glint)
-    g.setColour(juce::Colours::white.withAlpha(0.9f));
+    g.setColour(juce::Colours::white.withAlpha(0.85f));
     g.drawRoundedRectangle(r.reduced(0.2f).translated(-1.8f, -1.8f), curRadius,
                            0.6f);
 
@@ -1046,13 +1057,14 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   // Sections and Titles below
   // --- 3D Screwed-On Badge ---
   {
-    auto badge = L.topBar.reduced(16.0f);
-    float cr = 6.0f; // Corner radius for badge
+    auto badge =
+        L.topBar.reduced(2.0f); // Match the exact thickness of Input Meter
+    float cr = 6.0f;            // Corner radius for badge
 
     g.saveState();
     // Badge Background (Dark Metal)
-    juce::Colour b1 = juce::Colour(0xff1a1a1c); // Dark Steel
-    juce::Colour b2 = juce::Colour(0xff080808);
+    juce::Colour b1 = juce::Colour(0xff121213); // Dark Steel (minimal darker)
+    juce::Colour b2 = juce::Colour(0xff040404);
     juce::ColourGradient bg(b1, badge.getX(), badge.getY(), b2,
                             badge.getRight(), badge.getBottom(), false);
     g.setGradientFill(bg);
@@ -1068,7 +1080,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     juce::Path glass;
     glass.addRectangle(badge.getX(), badge.getY(), badge.getWidth(),
                        badge.getHeight() * 0.45f);
-    juce::ColourGradient gg(juce::Colours::white.withAlpha(0.12f), badge.getX(),
+    juce::ColourGradient gg(juce::Colours::white.withAlpha(0.18f), badge.getX(),
                             badge.getY(), juce::Colours::transparentWhite,
                             badge.getX(),
                             badge.getY() + badge.getHeight() * 0.5f, false);
@@ -1111,9 +1123,9 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
 
     juce::String fullText = "FUNKY MOOSE  BASS STRATEGY";
     juce::Font mainFont(
-        juce::FontOptions("CartoonVibes", 45.0f, juce::Font::plain));
+        juce::FontOptions("CartoonVibes", 38.0f, juce::Font::plain));
     juce::Font subFont(
-        juce::FontOptions("CartoonVibes", 37.5f, juce::Font::plain));
+        juce::FontOptions("CartoonVibes", 30.0f, juce::Font::plain));
     subFont.setHorizontalScale(0.94f); // minimal thinner
 
     float extraSpacing = 2.0f; // Tighter spacing
@@ -1247,7 +1259,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
             juce::Colours::transparentBlack, 2);
   drawFrame(L.elchArea, 0.0f, 1.5f, darkFrameCol, true, -0.2f);
 
-  // Titles
+  // Titles disabled as requested (but header space reserved for badges)
   g.setColour(juce::Colour(0xffcfc5b0));
 
   auto titleAt = [&](juce::Rectangle<float> r, const juce::String &t,
@@ -1256,7 +1268,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     if (hasFlowNum) {
       header.removeFromLeft(30.0f); // Reserve space for dynamic badge
     }
-    drawLabel(g, header, t, 17.0f, juce::Justification::left);
+    // drawLabel(g, header, t, 17.0f, juce::Justification::left);
   };
 
   titleAt(L.meter, "INPUT METER", true);
@@ -1267,27 +1279,25 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   for (int i = 0; i < 4; ++i) {
     auto rr = L.fxSlots[(size_t)i].reduced(18.0f, 5.0f).removeFromTop(24.0f);
     rr.removeFromLeft(30.0f); // Reserve space
-    drawLabel(g, rr, L.fxNames[(size_t)i], 15.0f, juce::Justification::left);
   }
 
   titleAt(L.master, "MASTER OUT", true);
-  // Add "/ CAB" in a small font right below "MASTER OUT" to stop it from
-  // invading the knob space
-  g.setColour(juce::Colour(0xffcfc5b0).withAlpha(0.6f));
-  drawLabel(g,
-            L.master.reduced(14.0f, 5.0f)
-                .removeFromTop(40.0f)
-                .withTrimmedTop(22.0f)
-                .translated(30.0f, 0.0f),
-            "/ CAB", 12.0f, juce::Justification::left);
+  // Add "/ CAB" in a small font over the cabinet area, aligned with the Cab
+  // Button (Disabled)
+  // float cabX = cabButton.getBounds().getX();
+  // drawLabel(g,
+  //           juce::Rectangle<float>(cabX, L.master.getY() + 10.0f,
+  //                                  cabButton.getWidth(), 20.0f),
+  //           "/ CAB", 12.0f, juce::Justification::centred);
+
   titleAt(L.outVuArea, "OUTPUT METER");
 
-  // ELCH Title
-  drawLabel(g,
-            L.elchArea.reduced(14.0f, 5.0f)
-                .removeFromTop(26.0f)
-                .translated(75.0f, 12.0f),
-            "ELCH / VISUAL / RMS", 17.0f, juce::Justification::left);
+  // ELCH Title (Disabled)
+  // drawLabel(g,
+  //           L.elchArea.reduced(14.0f, 5.0f)
+  //               .removeFromTop(26.0f)
+  //               .translated(75.0f, 12.0f),
+  //           "ELCH / VISUAL / RMS", 17.0f, juce::Justification::left);
 
   // Knob labels
   auto labelUnder = [&](juce::Component &c, const juce::String &t,
@@ -1319,28 +1329,33 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     auto bT = tubeToggle.getBounds().toFloat();
     auto bS = slapToggle.getBounds().toFloat();
 
-    // Unified Labeling for Amp Toggles - BELOW the switches
-    drawLabel(g, {bLC.getX() - 10.0f, bLC.getBottom() + 1.0f, 100.0f, 14.0f},
-              "LOW CUT", 10.5f, juce::Justification::centredTop);
-    drawLabel(g, {bLC.getX() - 10.0f, bLC.getBottom() + 13.0f, 100.0f, 12.0f},
-              "40 Hz", 10.0f, juce::Justification::centredTop);
+    auto cxLC = bLC.getCentreX();
+    auto cxT = bT.getCentreX();
+    auto cxS = bS.getCentreX();
 
-    drawLabel(g, {bT.getX() - 10.0f, bT.getBottom() + 1.0f, 100.0f, 14.0f},
-              "TUBE", 10.5f, juce::Justification::centredTop);
+    // Unified Labeling for Amp Toggles - BELOW the switches (Centered &
+    // slightly larger)
+    drawLabel(g, {cxLC - 60.0f, bLC.getBottom() + 1.0f, 120.0f, 16.0f},
+              "LOW CUT", 12.0f, juce::Justification::centredTop);
+    drawLabel(g, {cxLC - 60.0f, bLC.getBottom() + 15.0f, 120.0f, 14.0f},
+              "40 Hz", 11.0f, juce::Justification::centredTop);
 
-    drawLabel(g, {bS.getX() - 10.0f, bS.getBottom() + 1.0f, 100.0f, 14.0f},
-              "SLAP", 10.5f, juce::Justification::centredTop);
-    drawLabel(g, {bS.getX() - 10.0f, bS.getBottom() + 13.0f, 100.0f, 12.0f},
-              "+5 dB @ 8k", 9.5f, juce::Justification::centredTop);
+    drawLabel(g, {cxT - 60.0f, bT.getBottom() + 1.0f, 120.0f, 16.0f}, "TUBE",
+              12.0f, juce::Justification::centredTop);
+
+    drawLabel(g, {cxS - 60.0f, bS.getBottom() + 1.0f, 120.0f, 16.0f}, "SLAP",
+              12.0f, juce::Justification::centredTop);
+    drawLabel(g, {cxS - 60.0f, bS.getBottom() + 15.0f, 120.0f, 14.0f},
+              "+5 dB @ 8k", 10.5f, juce::Justification::centredTop);
   }
 
   // MASTER & CAB (Add shadow for the large knob to feel less isolated)
   {
-    auto b = outKnob.getBounds().toFloat().reduced(10.0f);
-    g.setColour(juce::Colours::black.withAlpha(0.25f));
-    g.fillEllipse(b.translated(0, 4.0f)); // Drop shadow
+    auto b = outKnob.getBounds().toFloat().reduced(6.0f);
+    g.setColour(juce::Colours::black.withAlpha(0.42f));
+    g.fillEllipse(b.translated(0, 6.0f)); // Drop shadow
   }
-  labelUnder(outKnob, "VOLUME", 18.0f);
+  // Removed "VOLUME" label under outKnob as requested
 
   // COMP
   labelUnder(compInKnob, "INPUT", 15.0f);
@@ -1426,8 +1441,12 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   labelSubToggle(autoGateToggle, "GATE");
   labelSubToggle(compAutoMakeupToggle, "AUTO");
   labelToggle(monoMakerToggle);
-  labelSubToggle(autoGainToggle,
-                 "AUTO"); // Consolidated use of labelSubToggle
+  // Auto Gain below the switch (Master section)
+  {
+    auto b = autoGainToggle.getBounds().toFloat();
+    drawLabel(g, {b.getCentreX() - 30.0f, b.getBottom() + 2.0f, 60.0f, 16.0f},
+              "AUTO", 11.0f, juce::Justification::centredTop);
+  }
 
   // --- CAB Button Recessed Frame (Window Style) ---
   {
@@ -1543,6 +1562,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   addScrews(L.comp, modInset);
   addScrews(L.master, modInset);
   addScrews(L.outVuArea, modInset);
+  addScrews(L.elchArea, modInset);
 
   for (size_t i = 0; i < 4; ++i) {
     addScrews(L.fxSlots[i], 5.0f);
@@ -1638,6 +1658,8 @@ void FunkyMooseAudioProcessorEditor::paintContent(juce::Graphics &g) {
                juce::Justification::centred);
   };
 
+  // Module numbering disabled as requested
+  /*
   drawStatusBadge(L.meter, 1, true); // Input always "on"
   drawStatusBadge(L.amp, 2, ampOnToggle.getToggleState());
   drawStatusBadge(L.comp, 3, compOn.getToggleState());
@@ -1646,6 +1668,7 @@ void FunkyMooseAudioProcessorEditor::paintContent(juce::Graphics &g) {
   drawStatusBadge(L.fxSlots[2], 6, phaserOn.getToggleState());
   drawStatusBadge(L.fxSlots[3], 7, chorusOn.getToggleState());
   drawStatusBadge(L.master, 8, masterOn.getToggleState());
+  */
 
   // --- MASTER OUT KNOB GLOW (Output Level Feedback) ---
   {
@@ -1859,26 +1882,29 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
 
   auto content = L.plate.reduced(M);
 
+  // Pre-calculate common column widths to perfectly align sections vertically
+  const float wRight = std::floor(content.getWidth() * 0.28f); // Elch Width
+  const float wLeftCol = content.getWidth() - wRight - G;
+  const float wAmp = std::floor(wLeftCol * 0.55f); // Amp is 55% of LeftCol
+
   // 1. Top Row (Input Meter | Title)
-  const float hTop = std::floor(content.getHeight() * 0.16f);
+  const float hTop = std::floor(content.getHeight() * 0.14f);
   auto topRow = content.removeFromTop(hTop);
   content.removeFromTop(G);
 
-  L.meter = topRow.removeFromLeft(std::floor(topRow.getWidth() * 0.35f));
+  // Meter is explicitly wAmp to match Output Meter
+  L.meter = topRow.removeFromLeft(wAmp);
   topRow.removeFromLeft(G);
+  // Title takes the remaining space on the top row
   L.topBar = topRow;
 
-  // 2. Bottom Row (Output Meter | Master Knob) - INCREASED HEIGHT
-  const float wRight = std::floor(
-      content.getWidth() * 0.28f); // Match Elch Width (Reduced from 40% to 32%)
-
-  const float hBottom = std::floor(content.getHeight() * 0.16f);
+  // 2. Bottom Row (Output Meter | Master Knob)
+  const float hBottom = std::floor(content.getHeight() * 0.14f);
   auto bottomRow = content.removeFromBottom(hBottom);
   content.removeFromBottom(G);
 
   // Bottom row split identically to Top row to match Meter sizes
-  L.outVuArea =
-      bottomRow.removeFromLeft(std::floor(bottomRow.getWidth() * 0.35f));
+  L.outVuArea = bottomRow.removeFromLeft(wAmp); // Match Amp width exactly
   bottomRow.removeFromLeft(G);
   L.master = bottomRow; // Rest is Master section
 
@@ -1892,25 +1918,23 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
   auto leftCol = content;
 
   // Split Left Col into Amp|Comp (Top) and FX (Bottom)
-  // Increased to 0.40f to give more vertical room for 2-row modules (Comp)
-  const float hUpper = std::floor(leftCol.getHeight() * 0.40f);
+  // Split 50/50 and remove the gap 'G' entirely so they perfectly touch.
+  const float hUpper = std::floor(leftCol.getHeight() * 0.50f);
   auto upperRow = leftCol.removeFromTop(hUpper);
-  leftCol.removeFromTop(G);
+  // (Removed leftCol.removeFromTop(G) to seal the gap completely)
   auto lowerRow = leftCol;
 
   // Upper: Amp (55%) | Comp (45%)
-  L.amp = upperRow.removeFromLeft(std::floor(upperRow.getWidth() * 0.55f));
+  L.amp = upperRow.removeFromLeft(wAmp); // Use pre-calculated width
   upperRow.removeFromLeft(G);
   L.comp = upperRow;
 
   // Lower: FX Grid 2x2
-  L.fx = lowerRow; // Title label for FX section
-  // FX Title height reserved inside paint? No, getLayout defines areas.
-  // We can just utilize the area for the grid.
-  // Let's create uniform 2x2
-  // We want a title strip? "FX SECTION"
-  const float hTitle = 24.0f;
-  // L.fx is the container.
+  L.fx = lowerRow; // Container for entire FX
+
+  // We removed the title strip space so the FX slots can touch the Amp/Comp
+  // directly
+  const float hTitle = 0.0f;
   auto grid = lowerRow;
   grid.removeFromTop(hTitle); // reserve space for title text drawing
 
@@ -2058,7 +2082,7 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
 
 void FunkyMooseAudioProcessorEditor::layoutAmp(
     const juce::Rectangle<float> &r) {
-  constexpr float kPrimary = 92.0f;
+  constexpr float kPrimary = 106.0f; // Increased knob size for thicker module
   const float k = kPrimary;
   const float G = juce::jlimit(16.0f, 30.0f, (r.getWidth() - k * 5.0f) / 4.0f);
 
@@ -2114,7 +2138,7 @@ void FunkyMooseAudioProcessorEditor::layoutAmp(
 
 void FunkyMooseAudioProcessorEditor::layoutComp(
     const juce::Rectangle<float> &r) {
-  constexpr float kSecondary = 56.0f; // Made smaller to fit the labels nicely
+  constexpr float kSecondary = 76.0f; // Matched to FX knob size (76px)
 
   // User requested "2 row layout"
   // Row 1: Input | Threshold | Ratio
@@ -2144,9 +2168,10 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
 
     // Spread the rows significantly to get labels exactly in the middle
     if (row == 0)
-      slotY -= 24.0f;
+      slotY -= 20.0f; // Give room for top labels
     if (row == 1)
-      slotY += 28.0f; // Pull up slightly to keep bottom labels inside frame
+      slotY += 26.0f; // Pull down enough so knobs don't overlap upper labels,
+                      // but keep bottom labels safe
 
     // Center in slot
     float cx = slotX + wSlot * 0.5f;
@@ -2255,37 +2280,36 @@ void FunkyMooseAudioProcessorEditor::layoutFx(const juce::Rectangle<float> &) {
 void FunkyMooseAudioProcessorEditor::layoutMaster(
     const juce::Rectangle<float> &r) {
   auto c = r.getCentre();
-  c.y -= 28.0f; // Shift entire master section UP to fit bottom labels
+  c.y -= 15.0f; // Shift UP safely: -15 preserves room for title
 
-  // Master Knob (Big) - Moved back up slightly
+  // Master Knob (Big)
   outKnob.setBounds(
-      juce::Rectangle<float>(c.x - 45.0f, c.y - 48.0f, 110.0f, 110.0f)
+      juce::Rectangle<float>(c.x - 58.0f, c.y - 65.0f, 116.0f, 116.0f)
           .toNearestInt());
 
   // Mix (Left of Master)
   mixKnob.setBounds(
-      juce::Rectangle<float>(c.x - 220.0f, c.y - 25.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x - 145.0f, c.y - 25.0f, 50.0f, 50.0f)
+          .toNearestInt());
+
+  // Mono Maker Toggle (Between Mix and Mono Maker)
+  monoMakerToggle.setBounds(
+      juce::Rectangle<float>(c.x - 207.0f, c.y - 7.0f, 24.0f, 24.0f)
           .toNearestInt());
 
   // Mono Maker (Further Left)
-  float mmX = c.x - 390.0f;
-  monoMakerKnob.setBounds(juce::Rectangle<float>(mmX, c.y - 25.0f, 50.0f, 50.0f)
-                              .toNearestInt()); // Aligned with Dry/Wet
-
-  // Toggle centered vertically precisely BETWEEN Mono Maker and Dry/Wet
-  // 390 + 220 / 2 = 305. 305 - 12 (half toggle) = 293
-  monoMakerToggle.setBounds(
-      juce::Rectangle<float>(c.x - 305.0f, c.y - 7.0f, 24.0f, 24.0f)
+  monoMakerKnob.setBounds(
+      juce::Rectangle<float>(c.x - 295.0f, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
-  // IR Mix (Left of Cabinets)
+  // IR Mix (Right of Master - Symmetrical to Mix Knob)
   irMixKnob.setBounds(
-      juce::Rectangle<float>(c.x + 130.0f, c.y - 25.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x + 95.0f, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
-  // Cab (Right of Master) - Bigger and deeper window
+  // Cab (Rightmost - Symmetrical to Mono Maker bounds)
   cabButton.setBounds(
-      juce::Rectangle<float>(c.x + 225.0f, c.y - 20.0f, 120.0f, 40.0f)
+      juce::Rectangle<float>(c.x + 175.0f, c.y - 20.0f, 120.0f, 40.0f)
           .toNearestInt());
 }
 

@@ -9,7 +9,7 @@
 //==============================================================================
 class FunkyMooseAudioProcessor : public juce::AudioProcessor {
 public:
-  static constexpr int projectVersion = 1;
+  static constexpr int projectVersion = 101;
 
   FunkyMooseAudioProcessor();
   ~FunkyMooseAudioProcessor() override = default;

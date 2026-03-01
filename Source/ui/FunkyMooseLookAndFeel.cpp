@@ -73,16 +73,16 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
 
       // 1. Soft Ambient / Directional Shadow (Wide & Soft)
       juce::DropShadow dsAmbient(
-          juce::Colours::black.withAlpha(isMaster ? 0.65f : 0.55f), 12, {2, 4});
+          juce::Colours::black.withAlpha(isMaster ? 0.65f : 0.55f), 14, {2, 4});
       dsAmbient.drawForPath(ig, shadow);
 
       // 2. Core Shadow (Darker, tighter, pulling down-right)
       juce::DropShadow dsCore(
-          juce::Colours::black.withAlpha(isMaster ? 0.85f : 0.75f), 6, {1, 3});
+          juce::Colours::black.withAlpha(isMaster ? 0.85f : 0.75f), 8, {1, 2});
       dsCore.drawForPath(ig, shadow);
 
       // 3. Contact Shadow (Very tight, anchors the knob to the plate)
-      juce::DropShadow dsContact(juce::Colours::black.withAlpha(0.90f), 2,
+      juce::DropShadow dsContact(juce::Colours::black.withAlpha(0.95f), 3,
                                  {0, 1});
       dsContact.drawForPath(ig, shadow);
     }
@@ -103,9 +103,9 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     ring.addEllipse(outer.reduced(3.0f));
     ring.setUsingNonZeroWinding(false);
     juce::ColourGradient ringGrad(
-        juce::Colours::white.withAlpha(isMaster ? 0.65f : 0.47f), outer.getX(),
-        outer.getY(), juce::Colours::black.withAlpha(isMaster ? 1.00f : 0.97f),
-        outer.getRight(), outer.getBottom(), false);
+        juce::Colours::white.withAlpha(isMaster ? 1.00f : 0.85f), outer.getX(),
+        outer.getY(), juce::Colours::black.withAlpha(1.00f), outer.getRight(),
+        outer.getBottom(), false);
     ig.setGradientFill(ringGrad);
     ig.fillPath(ring);
     ig.setColour(juce::Colours::black.withAlpha(0.95f));
@@ -129,30 +129,30 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
       ig.setColour(baseColour.withAlpha(0.10f / i));
       ig.drawEllipse(cap.expanded(i), 1.5f);
     }
-    float bottomDarken = isMaster ? 0.86f : (id == "AMP" ? 0.79f : 0.75f);
-    juce::ColourGradient capGrad(baseColour.brighter(0.4f), cx - radius * 0.4f,
+    float bottomDarken = isMaster ? 0.95f : (id == "AMP" ? 0.88f : 0.85f);
+    juce::ColourGradient capGrad(baseColour.brighter(0.8f), cx - radius * 0.4f,
                                  cy - radius * 0.4f,
                                  baseColour.darker(bottomDarken),
                                  cx + radius * 0.6f, cy + radius * 0.6f, true);
     ig.setGradientFill(capGrad);
     ig.fillEllipse(cap);
-    ig.setColour(juce::Colours::black.withAlpha(0.65f));
-    ig.drawEllipse(cap.reduced(1.0f), 1.2f);
+    ig.setColour(juce::Colours::black.withAlpha(0.85f));
+    ig.drawEllipse(cap.reduced(1.0f), 1.5f);
 
     // Hard Bevel Highlight (Top Leftish)
     juce::ColourGradient bevelHigh(
-        juce::Colours::white.withAlpha(0.35f), cx - radius * 0.7f,
+        juce::Colours::white.withAlpha(0.85f), cx - radius * 0.7f,
         cy - radius * 0.7f, juce::Colours::transparentWhite, cx, cy, true);
     ig.setGradientFill(bevelHigh);
-    ig.drawEllipse(cap.reduced(0.5f), 1.5f);
+    ig.drawEllipse(cap.reduced(0.5f), 2.5f);
 
     // Hard Bevel Shadow (Bottom Rightish)
     juce::ColourGradient bevelDark(juce::Colours::transparentWhite, cx, cy,
-                                   juce::Colours::black.withAlpha(0.8f),
+                                   juce::Colours::black.withAlpha(1.0f),
                                    cx + radius * 0.7f, cy + radius * 0.7f,
                                    true);
     ig.setGradientFill(bevelDark);
-    ig.drawEllipse(cap.reduced(0.5f), 1.5f);
+    ig.drawEllipse(cap.reduced(0.5f), 2.5f);
 
     if (id == "AMP") {
       ig.setColour(juce::Colours::white.withAlpha(0.18f));
@@ -192,8 +192,8 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
   hi.setPosition(specX, specY);
   float highlightAlpha =
       isMaster
-          ? 0.45f
-          : (id == "AMP" ? 0.35f : 0.30f); // Dulled highlight for aged plastic
+          ? 0.75f
+          : (id == "AMP" ? 0.65f : 0.60f); // Boosted highlight for extreme 3D
   juce::Colour agedWhite(0xffebd8b8);      // Yellowed sun-faded plastic white
 
   juce::ColourGradient shine(
@@ -265,14 +265,14 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
                           cy + std::sin(angle) * pointerLength);
 
     // Carved Needle Shadow (Inner cut)
-    g.setColour(juce::Colours::black.withAlpha(0.95f)); // Much darker
-    g.drawLine(p1.x + 1.5f, p1.y + 1.5f, p2.x + 1.5f, p2.y + 1.5f,
-               pointerWidth * 1.2f); // Slightly wider to look like a trench
+    g.setColour(juce::Colours::black.withAlpha(1.0f)); // Max dark
+    g.drawLine(p1.x + 2.5f, p1.y + 2.5f, p2.x + 2.5f, p2.y + 2.5f,
+               pointerWidth * 1.5f); // Wider trench
 
     // Catch light on the edge of the carved trench
-    g.setColour(juce::Colours::white.withAlpha(0.4f));
-    g.drawLine(p1.x - 1.0f, p1.y - 1.0f, p2.x - 1.0f, p2.y - 1.0f,
-               pointerWidth * 0.8f);
+    g.setColour(juce::Colours::white.withAlpha(0.95f));
+    g.drawLine(p1.x - 2.0f, p1.y - 2.0f, p2.x - 2.0f, p2.y - 2.0f,
+               pointerWidth * 1.0f);
 
     // Needle Body (Aged off-white plastic with grime)
     juce::Colour agedNeedleWhite = juce::Colour(0xffebd8b8);
@@ -318,13 +318,13 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
                                     radius * 1.4f, radius * 1.4f);
 
     // Dark inner shadow (cut-in effect)
-    g.setColour(juce::Colours::black.withAlpha(0.65f));
-    g.drawFittedText(text, textArea.translated(0.0f, 1.5f).toNearestInt(),
+    g.setColour(juce::Colours::black.withAlpha(1.0f));
+    g.drawFittedText(text, textArea.translated(0.0f, 3.0f).toNearestInt(),
                      juce::Justification::centred, 1);
 
     // Light specular highlight (bottom edge of cut)
-    g.setColour(juce::Colours::white.withAlpha(0.45f));
-    g.drawFittedText(text, textArea.translated(0.0f, -1.0f).toNearestInt(),
+    g.setColour(juce::Colours::white.withAlpha(0.95f));
+    g.drawFittedText(text, textArea.translated(0.0f, -2.0f).toNearestInt(),
                      juce::Justification::centred, 1);
 
     // Base color or slight gradient for the text itself (to look embossed)
@@ -345,19 +345,28 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
       button.isMouseOverOrDragging() || shouldDrawButtonAsHighlighted;
   const bool down = button.isMouseButtonDown() || shouldDrawButtonAsDown;
 
-  // Contact Shadow (Grounding the button)
-  g.setColour(juce::Colours::black.withAlpha(0.6f));
-  g.fillRoundedRectangle(r.translated(1.5f, 1.8f), 3.0f);
+  // Darker Drop Shadow for the Button
+  juce::DropShadow btnShadow(juce::Colours::black.withAlpha(0.95f), 8, {3, 5});
+  juce::Path btnPath;
+  btnPath.addRoundedRectangle(r, 3.0f);
+  btnShadow.drawForPath(g, btnPath);
 
-  // Button Body (Hardened Plastic/Metal)
-  g.setColour(juce::Colours::black.withAlpha(0.65f));
+  // Contact Shadow (Grounding the button)
+  g.setColour(juce::Colours::black.withAlpha(0.95f));
+  g.fillRoundedRectangle(r.translated(3.5f, 4.0f), 3.0f);
+
+  // Button Body (Molded Metal/Plastic with Gradient)
+  juce::ColourGradient btnGrad(juce::Colour(0xff555555), r.getX(), r.getY(),
+                               juce::Colour(0xff0a0a0a), r.getRight(),
+                               r.getBottom(), false);
+  g.setGradientFill(btnGrad);
   g.fillRoundedRectangle(r, 3.0f);
 
-  // Metallic Rim (Bevel)
-  g.setColour(juce::Colours::white.withAlpha(0.18f));
-  g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, 1.0f);
-  g.setColour(juce::Colours::black.withAlpha(0.85f));
-  g.drawRoundedRectangle(r, 3.0f, 0.8f);
+  // Metallic Rim (Hard Bevel)
+  g.setColour(juce::Colours::white.withAlpha(0.7f));
+  g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, 2.0f);
+  g.setColour(juce::Colours::black.withAlpha(1.0f));
+  g.drawRoundedRectangle(r, 3.0f, 1.8f);
 
   auto lamp = r.reduced(4.0f);
   // Re-use dynamic color logic just in case, but usually fixed in header

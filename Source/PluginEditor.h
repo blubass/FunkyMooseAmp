@@ -175,7 +175,56 @@ private:
         g.fillRect(pRect);
       }
 
-      // 3. Glass reflection (Final Layer)
+      // 3. Labels and Numbering incorporated into the bars
+      if (meterLabel.isNotEmpty()) {
+        g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
+        // Deep shadow for 3D embedded look
+        g.setColour(juce::Colours::black.withAlpha(0.8f));
+        g.drawText(meterLabel, r.translated(1, 1).toNearestInt(),
+                   juce::Justification::centred, false);
+        g.setColour(juce::Colours::black.withAlpha(0.4f));
+        g.drawText(meterLabel, r.translated(0, -1).toNearestInt(),
+                   juce::Justification::centred, false);
+        // Main text color (semi-transparent white/silver)
+        g.setColour(juce::Colour(0xffc0c0c0).withAlpha(0.5f));
+        g.drawText(meterLabel, r.toNearestInt(), juce::Justification::centred,
+                   false);
+      }
+
+      // Draw numbering scale subtly along the bottom/right edge
+      g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+      int numLabels = 5;
+      for (int i = 0; i < numLabels; ++i) {
+        float frac = (float)i / (float)(numLabels - 1);
+        juce::String numText;
+        if (isGR) {
+          numText = juce::String(-(int)((1.0f - frac) * 24.0f)); // 0 to -24
+        } else {
+          numText = juce::String((int)(frac * 60.0f) - 60); // -60 to 0
+        }
+
+        if (isVertical) {
+          float ly = inner.getBottom() - frac * inner.getHeight();
+          g.setColour(juce::Colours::black.withAlpha(0.8f));
+          g.drawText(numText, (int)(inner.getX()), (int)(ly - 6),
+                     (int)inner.getWidth(), 12, juce::Justification::centred,
+                     false);
+          g.setColour(juce::Colour(0xffa0a0a0).withAlpha(0.6f));
+          g.drawText(numText, (int)(inner.getX()), (int)(ly - 7),
+                     (int)inner.getWidth(), 12, juce::Justification::centred,
+                     false);
+        } else {
+          float lx = inner.getX() + frac * inner.getWidth();
+          g.setColour(juce::Colours::black.withAlpha(0.8f));
+          g.drawText(numText, (int)(lx - 15), (int)(inner.getY() + 2), 30, 12,
+                     juce::Justification::centred, false);
+          g.setColour(juce::Colour(0xffa0a0a0).withAlpha(0.6f));
+          g.drawText(numText, (int)(lx - 16), (int)(inner.getY() + 1), 30, 12,
+                     juce::Justification::centred, false);
+        }
+      }
+
+      // 4. Glass reflection (Final Layer)
       juce::ColourGradient glassG(
           juce::Colours::white.withAlpha(0.12f), r.getX(), r.getY(),
           juce::Colours::transparentWhite, r.getX(), r.getBottom(), false);
@@ -188,6 +237,7 @@ private:
     int peakHoldFrames = 0;
     bool isGR = false;
     bool isVertical = false;
+    juce::String meterLabel;
     FunkyMooseAudioProcessorEditor &owner;
   };
 
