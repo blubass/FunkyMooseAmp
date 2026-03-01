@@ -244,6 +244,23 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   const int bufferChannels = buffer.getNumChannels();
   const int numSamples = buffer.getNumSamples();
 
+  // DEBUG: Log audio device info on first call (Safe for MSVC)
+  static bool firstCall = true;
+  if (firstCall) {
+    firstCall = false;
+    DBG("===== AUDIO PROCESSOR INITIALIZED =====");
+    DBG("Total Input Channels: " + juce::String(totalIns));
+    DBG("Total Output Channels: " + juce::String(totalOuts));
+    DBG("Buffer Channels: " + juce::String(bufferChannels));
+    DBG("Sample Rate: " + juce::String(getSampleRate()));
+    DBG("Wrapper Type: " + juce::String((int)wrapperType));
+    DBG("Is Standalone: " +
+        juce::String(
+            (wrapperType == juce::AudioProcessor::wrapperType_Standalone)
+                ? "Yes"
+                : "No"));
+  }
+
   // Safety: If the host changed channel counts or sample rate without calling
   // prepareToPlay, we MUST re-prepare now to avoid crashes (especially with
   // dryBuffer and oversampling).
@@ -252,6 +269,10 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     prepareToPlay(getSampleRate() > 0.0 ? getSampleRate() : 44100.0,
                   numSamples);
   }
+
+  // Safety check to ensure we don't process with 0 channels (MSVC robustness)
+  if (bufferChannels == 0 || numSamples == 0)
+    return;
 
   // 1. Mono-to-Stereo and Standalone Summing
   // We want to ensure that no matter what, we have a signal in both L and R if
