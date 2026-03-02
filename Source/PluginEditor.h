@@ -37,15 +37,15 @@ private:
     void setLevel(float lin) {
       level = juce::jlimit(0.0f, 1.0f, lin);
 
-      // Peak hold (reduced for snappier feedback)
+      // Peak hold (increased for longer persistence)
       if (level >= peak) {
         peak = level;
-        peakHoldFrames = 12; // ~0.4s @ 30Hz
+        peakHoldFrames = 24; // Increased from 12
       } else {
         if (peakHoldFrames > 0)
           --peakHoldFrames;
         else
-          peak *= 0.94f; // Much faster decay
+          peak *= 0.96f; // Slower decay
       }
 
       repaint();
@@ -54,63 +54,48 @@ private:
     void paint(juce::Graphics &g) override {
       auto r = getLocalBounds().toFloat();
 
-      // 1. Meter Housing / Glass (Dark & Recessed)
-      g.setColour(juce::Colour(0xff121212)); // Deeper Black
+      // 1. Meter Housing / Glass (Deeper & more 3D)
+      juce::ColourGradient housingGrad(juce::Colour(0xff080808), r.getX(),
+                                       r.getY(), juce::Colour(0xff1a1a1a),
+                                       r.getX(), r.getBottom(), false);
+      g.setGradientFill(housingGrad);
       g.fillRoundedRectangle(r, 4.0f);
 
-      // Inner shadow for depth
-      g.setColour(juce::Colours::black.withAlpha(0.6f));
-      g.drawRoundedRectangle(r, 4.0f, 1.5f);
+      // Deep Inner shadow for recessed feeling
+      g.setColour(juce::Colours::black.withAlpha(0.85f));
+      g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 1.8f);
 
-      // --- NEW: METALLIC RIM / INNER GLOW ---
-      g.setColour(juce::Colours::white.withAlpha(0.08f));
-      g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 0.5f); // Subtle Rim
+      // --- METALLIC RIM / INNER GLOW ---
+      g.setColour(juce::Colours::white.withAlpha(0.12f));
+      g.drawRoundedRectangle(r.reduced(1.0f), 3.5f, 0.6f);
 
       // 2. LED Segments
-      auto inner = r.reduced(4.0f, 4.0f); // Padding inside glass
+      auto inner = r.reduced(4.5f, 4.5f);
 
-      // High-Res Metering
       const int numSegments = 48;
       const float gap = 0.8f;
+      const float vuMapping = std::pow(
+          level, isGR ? 0.35f : 0.45f); // Slightly more aggressive curve
 
-      // Map linear -> Log/VU curve
-      const float vuMapping = std::pow(level, isGR ? 0.4f : 0.5f); // 0.0 -> 1.0
-
-      // Colors - "Elch Glow" (Orange -> Cyan)
-      const juce::Colour cOrange =
-          juce::Colour(0xffff9900);                        // Warm Orange / Gold
-      const juce::Colour cCyan = juce::Colour(0xff00ffff); // Electric Cyan
+      const juce::Colour cOrange = juce::Colour(0xffff9900);
+      const juce::Colour cCyan = juce::Colour(0xff00ffff);
 
       for (int i = 0; i < numSegments; ++i) {
-        float pos = (float)i / (float)(numSegments - 1); // 0.0 to 1.0
-
-        // Smooth interpolation from Orange to Cyan
-        // Using pos^1.5 or pos^2 to keep more orange in the lower range
+        float pos = (float)i / (float)(numSegments - 1);
         juce::Colour segCol =
-            cOrange.interpolatedWith(cCyan, std::pow(pos, 1.5f));
+            cOrange.interpolatedWith(cCyan, std::pow(pos, 1.3f));
 
-        // Is this segment active?
         bool active = false;
         if (isVertical) {
-          if (isGR) {
-            // Vertical GR: Top -> Bottom (Top is 0dB, Bottom is -inf)
-            // But GR meters usually start from top-down.
-            // Let's say top is 1.0 (no reduction), bottom is 0.0 (max
-            // reduction).
+          if (isGR)
             active = ((1.0f - pos) <= (1.0f - level));
-          } else {
-            // Vertical VU: Bottom -> Top
+          else
             active = (pos <= vuMapping);
-          }
         } else {
-          if (isGR) {
-            // Horizontal GR: Right -> Left
-            // 1.0 = no reduction (0 LEDS), 0.0 = max reduction (ALL LEDS)
+          if (isGR)
             active = ((1.0f - pos) <= (1.0f - level));
-          } else {
-            // Horizontal VU: Left -> Right
+          else
             active = (pos <= vuMapping);
-          }
         }
 
         juce::Rectangle<float> segRect;
@@ -127,37 +112,30 @@ private:
         }
 
         if (active) {
-          // ACTIVE: Bright & Glowing
-          g.setColour(segCol);
+          g.setColour(segCol.withAlpha(0.95f));
           g.fillRect(segRect);
-
-          // Core of LED (Brighter)
-          g.setColour(juce::Colours::white.withAlpha(0.4f));
-          g.fillRect(segRect.reduced(isVertical ? 1.0f : 0.5f,
-                                     isVertical ? 0.5f : 1.0f));
-
+          // High-Intensity core
+          g.setColour(juce::Colours::white.withAlpha(0.65f));
+          g.fillRect(segRect.reduced(isVertical ? 1.5f : 0.5f,
+                                     isVertical ? 0.5f : 1.5f));
         } else {
-          // Subtle afterglow for segments just below current level
-          // (micro-animation)
           float distanceFromLevel = vuMapping - pos;
-          if (distanceFromLevel > 0.0f && distanceFromLevel < 0.15f) {
-            // Segments just behind the level get a fading glow
-            float glowAmount = 1.0f - (distanceFromLevel / 0.15f);
-            g.setColour(segCol.withAlpha(0.3f * glowAmount));
+          if (distanceFromLevel > 0.0f && distanceFromLevel < 0.2f) {
+            float glowAmount = 1.0f - (distanceFromLevel / 0.2f);
+            g.setColour(segCol.withAlpha(0.4f * glowAmount));
             g.fillRect(segRect);
           } else {
-            // INACTIVE: Dark "Ghost" LED
-            g.setColour(segCol.darker(0.8f).withAlpha(0.15f));
+            g.setColour(segCol.darker(0.9f).withAlpha(0.12f));
             g.fillRect(segRect);
           }
         }
       }
 
-      // Peak Hold Indicator (White segment)
+      // 3. PEAK HOLD INDICATOR (Stronger & Glowing)
       if (peak > 0.001f) {
-        float peakVu = std::pow(peak, isGR ? 0.4f : 0.5f);
-        int peakIdx = (int)(peakVu * (numSegments - 1));
-        peakIdx = juce::jlimit(0, numSegments - 1, peakIdx);
+        float peakVu = std::pow(peak, isGR ? 0.35f : 0.45f);
+        int peakIdx =
+            juce::jlimit(0, numSegments - 1, (int)(peakVu * (numSegments - 1)));
 
         juce::Rectangle<float> pRect;
         if (isVertical) {
@@ -171,22 +149,35 @@ private:
           float x = inner.getX() + peakIdx * (segW + gap);
           pRect = {x, inner.getY(), segW, inner.getHeight()};
         }
-        g.setColour(juce::Colours::white.withAlpha(0.85f)); // White peak
+
+        // --- PEAK GLOW ---
+        g.setColour(juce::Colours::white.withAlpha(0.15f));
+        g.fillRoundedRectangle(pRect.expanded(2.0f), 1.0f);
+        g.setColour(juce::Colours::white.withAlpha(0.10f));
+        g.fillRoundedRectangle(pRect.expanded(4.0f), 2.0f);
+
+        g.setColour(
+            juce::Colours::white.withAlpha(0.98f)); // Screaming White peak
         g.fillRect(pRect);
       }
 
-      // 3. Labels and Numbering incorporated into the bars
+      // 4. Labels (Unified 3D Look)
       if (meterLabel.isNotEmpty()) {
-        g.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-        // Deep shadow for 3D embedded look
-        g.setColour(juce::Colours::black.withAlpha(0.8f));
-        g.drawText(meterLabel, r.translated(1, 1).toNearestInt(),
+        juce::Font f(20.0f, juce::Font::bold);
+        g.setFont(f);
+
+        // Shadow for depth
+        g.setColour(juce::Colours::black.withAlpha(0.9f));
+        g.drawText(meterLabel, r.translated(1.5f, 1.8f).toNearestInt(),
                    juce::Justification::centred, false);
-        g.setColour(juce::Colours::black.withAlpha(0.4f));
-        g.drawText(meterLabel, r.translated(0, -1).toNearestInt(),
+
+        // Emboss highlight
+        g.setColour(juce::Colours::white.withAlpha(0.25f));
+        g.drawText(meterLabel, r.translated(0.0f, 1.0f).toNearestInt(),
                    juce::Justification::centred, false);
-        // Main text color (semi-transparent white/silver)
-        g.setColour(juce::Colour(0xffc0c0c0).withAlpha(0.5f));
+
+        // White face
+        g.setColour(juce::Colours::white.withAlpha(0.6f));
         g.drawText(meterLabel, r.toNearestInt(), juce::Justification::centred,
                    false);
       }
@@ -271,17 +262,17 @@ private:
       g.setColour(cpuCol.withAlpha(0.4f));
       g.drawRoundedRectangle(area.reduced(0.5f), 4.0f, 1.2f);
 
-      // 4. Text (with subtle glow)
-      g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
-      g.setColour(cpuCol.withAlpha(0.3f * pulse));
+      // 4. Text (Larger & Bolder for Tech Look)
+      g.setFont(juce::Font(15.0f, juce::Font::bold));
+      g.setColour(cpuCol.withAlpha(0.4f * pulse));
 
       juce::String text = "CPU: " + juce::String(cpuUsage * 100.0f, 1) +
                           "%  LAT: " + juce::String(latencySamples);
 
-      g.drawText(text, area.translated(1.0f, 1.0f),
+      g.drawText(text, area.translated(1.5f, 1.8f),
                  juce::Justification::centred);
 
-      g.setColour(juce::Colours::white.withAlpha(0.9f));
+      g.setColour(juce::Colours::white.withAlpha(0.95f));
       g.drawText(text, area, juce::Justification::centred);
     }
 
@@ -320,7 +311,8 @@ private:
   // Typography helpers (crisp)
   void drawLabel(juce::Graphics &g, juce::Rectangle<float> r,
                  const juce::String &text, float size,
-                 juce::Justification just = juce::Justification::centred) const;
+                 juce::Justification just = juce::Justification::centred,
+                 bool isTopRow = false) const;
 
   static constexpr int designW = 2048;
   static constexpr int designH = 1152;
@@ -425,7 +417,7 @@ private:
   juce::ToggleButton monoMakerToggle;
   juce::TextButton cabButton{"OFF"};
 
-  juce::ToggleButton tunerToggle;
+  juce::ToggleButton tunerToggle, monoInputButton;
   std::unique_ptr<TunerComponent> tunerOverlay;
 
   ContentCanvas content{*this};
@@ -464,7 +456,7 @@ private:
   std::unique_ptr<ButtonAttachment> autoGainAtt, monoMakerOnAtt, masterOnAtt,
       autoGateAtt;
   std::unique_ptr<ButtonAttachment> ampAutoGainAtt, compAutoMakeupAtt,
-      tunerAttachment;
+      tunerAttachment, monoInputAtt;
 
   // Visuals
   Skins::Palette currentPalette;

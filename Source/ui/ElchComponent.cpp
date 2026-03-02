@@ -28,7 +28,8 @@ void ElchComponent::paint(juce::Graphics &g) {
     g.drawImage(elchImage, bounds, juce::RectanglePlacement::centred);
 
     // Dynamic separation highlight (Rim Light) to ensure it pops from the black
-    g.setColour(juce::Colours::white.withAlpha(0.35f * amt + 0.15f));
+    // Balanced: 5% darker to stay subtle
+    g.setColour(juce::Colours::white.withAlpha(0.32f * amt + 0.14f));
     g.drawEllipse(bounds.reduced(2.0f), 1.5f);
 
     g.restoreState();
@@ -85,24 +86,33 @@ void ElchComponent::paint(juce::Graphics &g) {
     juce::Colour baseL = juce::Colours::cyan;
     juce::Colour baseR = juce::Colour(0xFFFF8000);
 
-    auto drawHalo = [&](juce::Point<float> pt, juce::Colour c, float r) {
+    auto drawHalo = [&](juce::Point<float> pt, juce::Colour c, float r,
+                        float intensityScale = 1.0f) {
       g.saveState();
-      float rGlow = r * (1.8f + 1.4f * inputLevel);
-      juce::Colour cCore =
-          juce::Colours::white.withAlpha(std::min(1.0f, 1.2f * bright));
-      juce::Colour cMid = c.withAlpha(std::min(1.0f, 0.95f * bright));
+      // Much larger, softer falloff for the 'Halo' vibe
+      float rGlow = r * (3.0f + 1.5f * inputLevel);
+
+      // Tube-light style: Not bright white core, but a warm, glowing source
+      // Boosted intensity to ~55% per user request ("scream louder")
+      float finalAlpha = std::min(0.55f, 0.45f * bright) * intensityScale;
+
+      juce::Colour cCore = c.brighter(0.5f).withAlpha(finalAlpha);
+      juce::Colour cMid = c.withAlpha(finalAlpha * 0.75f);
       juce::Colour cOuter = c.withAlpha(0.0f);
+
       juce::ColourGradient cg(cCore, pt.x, pt.y, cOuter, pt.x, pt.y - rGlow,
                               true);
-      cg.addColour(0.25f, cMid);
-      cg.addColour(0.65f, c.withAlpha(0.7f * std::min(1.0f, bright)));
+      cg.addColour(0.20f, cCore); // Stronger core
+      cg.addColour(0.45f, cMid);  // Softer falloff
+
       g.setGradientFill(cg);
       g.fillEllipse(pt.x - rGlow, pt.y - rGlow, rGlow * 2.0f, rGlow * 2.0f);
       g.restoreState();
     };
 
-    drawHalo(leftCenter, baseL, radius);
-    drawHalo(rightCenter, baseR, radius);
+    // Eyes: Small glowing centers, subtle halo
+    drawHalo(leftCenter, baseL, radius * 0.6f, 1.0f);
+    drawHalo(rightCenter, baseR, radius * 0.6f, 1.0f);
 
     float antlerY = bounds.getY() + bounds.getHeight() * 0.30f;
     float antlerSep = w * 0.28f;
@@ -110,8 +120,9 @@ void ElchComponent::paint(juce::Graphics &g) {
     auto rightAntler = juce::Point<float>(centerX + antlerSep,
                                           antlerY - bounds.getHeight() * 0.02f);
 
-    drawHalo(leftAntler, baseL, radius * 0.95f);
-    drawHalo(rightAntler, baseR, radius * 0.95f);
+    // Antlers: Even subtler halos (0.6 intensity scale), no distinct 'balls'
+    drawHalo(leftAntler, baseL, radius * 0.5f, 0.6f);
+    drawHalo(rightAntler, baseR, radius * 0.5f, 0.6f);
 
     // --- DIAMOND SPARKLE ---
     auto drawSparkle = [&](juce::Point<float> pt, float phase) {
@@ -172,17 +183,33 @@ void ElchComponent::updateCachedBackground() {
                                  bounds.getHeight(), true);
   juce::Graphics g(cachedBackground);
 
-  // 1. Ultra-Dark Metallic Plate (Deep Black)
-  g.setColour(juce::Colour(0xff050505));
+  // 1. Midnight Petrol / Night Blue Radial Gradient
+  juce::Colour centerCol(0xff020408); // Darker center
+  juce::Colour edgeCol(0xff060c18);   // Dark Petrol hint towards outer edges
+  juce::ColourGradient bgGrad(centerCol, bounds.getCentreX(),
+                              bounds.getCentreY(), edgeCol, 0.0f, 0.0f, true);
+  g.setGradientFill(bgGrad);
   g.fillRect(bounds.toFloat());
 
-  // Tiny bit of dark grit
+  // Tiny bit of dark grit for texture (Increased to 3500 particles for more
+  // character)
   juce::Random rnd(1234);
-  for (int i = 0; i < 1500; ++i) {
-    g.setColour(juce::Colours::white.withAlpha(rnd.nextFloat() * 0.03f));
+  for (int i = 0; i < 3500; ++i) {
+    g.setColour(juce::Colours::white.withAlpha(rnd.nextFloat() * 0.045f));
     g.fillRect(rnd.nextFloat() * bounds.getWidth(),
                rnd.nextFloat() * bounds.getHeight(), 1.0f, 1.0f);
   }
+
+  // --- VINTAGE GLASS REFLECTION ---
+  // Thin top hairline for that polished tube-amp shield look
+  g.setColour(juce::Colours::white.withAlpha(0.22f));
+  g.drawLine(20.0f, 1.5f, bounds.getRight() - 20.0f, 1.5f, 0.6f);
+
+  // Very soft top-down glaze
+  juce::ColourGradient glaze(juce::Colours::white.withAlpha(0.06f), 0, 0,
+                             juce::Colours::transparentWhite, 0, 15.0f, false);
+  g.setGradientFill(glaze);
+  g.fillRect(bounds.removeFromTop(15).toFloat());
 
   // MODULAR FRAME BEVEL (The outer slot border)
   g.setColour(juce::Colours::black);

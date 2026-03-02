@@ -29,6 +29,8 @@ FunkyMooseAudioProcessor::createParams() {
   p.push_back(std::make_unique<APB>("bypass", "Hard Bypass", false));
   p.push_back(std::make_unique<APB>("autoGate", "Auto Gate", true));
   p.push_back(std::make_unique<APB>("tunerOn", "Tuner", false));
+  p.push_back(std::make_unique<APB>(
+      "forceMonoInput", "Force Mono Input (Standalone Mode)", true));
 
   // AMP
   p.push_back(std::make_unique<APB>("ampOn", "Amp On", true));
@@ -187,6 +189,7 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   monoMakerParam = apvts.getRawParameterValue("monoMaker");
   monoMakerOnParam = apvts.getRawParameterValue("monoMakerOn");
   autoGainParam = apvts.getRawParameterValue("autoGain");
+  forceMonoInputParam = apvts.getRawParameterValue("forceMonoInput");
 
   dspChain.prepare(mState.spec);
 
@@ -274,54 +277,21 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (bufferChannels == 0 || numSamples == 0)
     return;
 
-  // 1. Mono-to-Stereo and Standalone Summing
-  // We want to ensure that no matter what, we have a signal in both L and R if
-  // possible.
-  if (wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
-    if (totalIns >= 1 && bufferChannels >= 1) {
-      // Standalone Failsafe: Scan ALL reported hardware inputs.
-      // If we find signal on ANY channel (like channel 3 or 4), sum it to our
-      // main pair.
-      bool foundAnySignal = false;
-      for (int ch = 0; ch < totalIns; ++ch) {
-        if (ch < bufferChannels &&
-            buffer.getMagnitude(ch, 0, numSamples) > 0.0001f) {
-          foundAnySignal = true;
-          if (ch > 1 && bufferChannels >= 2) {
-            // If signal is on a higher channel, add it to L/R
-            buffer.addFrom(0, 0, buffer, ch, 0, numSamples, 0.5f);
-            buffer.addFrom(1, 0, buffer, ch, 0, numSamples, 0.5f);
-          }
-        }
-      }
+  // echte Input-Channels, die im Buffer wirklich vorhanden sind
+  const int inCh = juce::jmin(totalIns, bufferChannels);
 
-      float lMag = buffer.getMagnitude(0, 0, numSamples);
-      float rMag =
-          (bufferChannels > 1) ? buffer.getMagnitude(1, 0, numSamples) : 0.0f;
-
-      // If we only have signal on one side, copy it to the other
-      if (lMag < 0.001f && rMag > 0.001f && bufferChannels >= 2) {
-        buffer.copyFrom(0, 0, buffer, 1, 0, numSamples);
-      } else if (rMag < 0.001f && lMag > 0.001f && bufferChannels >= 2) {
-        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
-      }
-      // If we only have one input channel total, copy it to the second buffer
-      // channel
-      else if (totalIns == 1 && bufferChannels >= 2 && lMag > 0.001f) {
-        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
-      }
-    }
-  } else {
-    // Normal Plugin Behavior (VST3/AU)
-    if (totalIns == 1 && bufferChannels >= 2) {
-      buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
-    }
-  }
-
-  // 2. Clear ONLY truly unused channels
-  for (int ch = std::max(totalIns, 2); ch < bufferChannels; ++ch) {
+  // 1) alles löschen, was kein echter Input ist (verhindert Ghosts rechts)
+  for (int ch = inCh; ch < bufferChannels; ++ch)
     buffer.clear(ch, 0, numSamples);
-  }
+
+  // 2) Standalone: erzwinge Mono-Policy (R = L), damit offene Inputs keinen
+  // Ärger machen
+  const bool forceMono =
+      (wrapperType == juce::AudioProcessor::wrapperType_Standalone) &&
+      (forceMonoInputParam && forceMonoInputParam->load() > 0.5f);
+
+  if (forceMono && bufferChannels >= 2)
+    buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
 
   const bool tunerOn = (apvts.getRawParameterValue("tunerOn")->load() > 0.5f);
   tunerIsOn.store(tunerOn, std::memory_order_relaxed);

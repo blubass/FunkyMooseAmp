@@ -24,14 +24,14 @@ public:
 
     gInFIFO.assign(8192, 0.0f);
     gOutFIFO.assign(8192, 0.0f);
-    gLastPhase.assign(8192 / 2 + 1, 0.0f);
-    gSumPhase.assign(8192 / 2 + 1, 0.0f);
+    gLastPhase.assign(8192, 0.0f);
+    gSumPhase.assign(8192, 0.0f);
     gOutputAccum.assign(16384, 0.0f);
     gAnaFreq.assign(8192, 0.0f);
     gAnaMagn.assign(8192, 0.0f);
     gSynFreq.assign(8192, 0.0f);
     gSynMagn.assign(8192, 0.0f);
-    fftWorksp.assign(2048, 0.0f);
+    fftWorksp.assign(4096, 0.0f);
   }
 
   void reset() {
@@ -168,6 +168,10 @@ public:
 
         std::memmove(gOutputAccum.data(), gOutputAccum.data() + stepSize,
                      (size_t)fftFrameSize * sizeof(float));
+        // Clear trailing part to prevent buildup artifacts
+        std::fill(gOutputAccum.begin() + fftFrameSize, gOutputAccum.end(),
+                  0.0f);
+
         for (int k = 0; k < inFifoLatency; k++)
           gInFIFO[(size_t)k] = gInFIFO[(size_t)(k + stepSize)];
       }

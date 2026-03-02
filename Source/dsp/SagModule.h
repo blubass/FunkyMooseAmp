@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../JuceIncludes.h"
+#include <algorithm>
 
 //==============================================================================
 // Sag Module: Tube Power Supply Collapse Simulation
@@ -8,7 +9,7 @@
 // Mimics the effect of a tube amp's power supply sagging under load.
 // Uses a fast Attack and slow Release envelope follower to reduce gain
 // when signal peaks occur.
-//
+//==============================================================================
 class SagModule {
 public:
   void prepare(const juce::dsp::ProcessSpec &spec) {
@@ -33,10 +34,7 @@ public:
     sagAmount = juce::jlimit(0.05f, 0.12f, amount);
   }
 
-  void reset() noexcept {
-    envelope[0] = 0.0f;
-    envelope[1] = 0.0f;
-  }
+  void reset() noexcept { globalEnv = 0.0f; }
 
   void process(const juce::dsp::ProcessContextReplacing<float> &ctx) {
     if (!prepared)
@@ -44,29 +42,31 @@ public:
 
     auto &block = ctx.getOutputBlock();
     const size_t numCh = block.getNumChannels();
+    const size_t numSamples = block.getNumSamples();
 
-    // Each channel gets its own envelope to avoid stereo-width artefacts
-    // when L and R have different peak levels.
+    // Stereo Linked detection to avoid image shift or per-channel grit
+    float blockPeak = 0.0f;
     for (size_t ch = 0; ch < numCh; ++ch) {
-      auto *d = block.getChannelPointer(ch);
-      float &env = envelope[ch < 2 ? ch : 0]; // max 2 channels tracked
+      auto *data = block.getChannelPointer(ch);
+      for (size_t i = 0; i < numSamples; ++i) {
+        blockPeak = std::max(blockPeak, std::abs(data[i]));
+      }
+    }
 
-      for (size_t i = 0; i < block.getNumSamples(); ++i) {
-        float x = d[i];
-        float peak = std::abs(x);
+    // Smooth global envelope
+    if (blockPeak > globalEnv) {
+      globalEnv += (blockPeak - globalEnv) * (float)attackCoeff;
+    } else {
+      globalEnv += (blockPeak - globalEnv) * (float)releaseCoeff;
+    }
 
-        // Attack/Release Envelope Follower (per channel)
-        if (peak > env) {
-          env += (peak - env) * attackCoeff;
-        } else {
-          env += (peak - env) * releaseCoeff;
-        }
+    float gainReduction = 1.0f - (globalEnv * sagAmount);
+    gainReduction = juce::jlimit(0.85f, 1.0f, gainReduction);
 
-        // Gain Reduction: higher envelope -> more voltage sag
-        float gainReduction = 1.0f - (env * sagAmount);
-        gainReduction = juce::jlimit(0.0f, 1.0f, gainReduction);
-
-        d[i] = x * gainReduction;
+    for (size_t ch = 0; ch < numCh; ++ch) {
+      float *d = block.getChannelPointer(ch);
+      for (size_t i = 0; i < numSamples; ++i) {
+        d[i] *= gainReduction;
       }
     }
   }
@@ -76,6 +76,6 @@ private:
   float attackCoeff = 0.1f;
   float releaseCoeff = 0.01f;
   float sagAmount = 0.05f;
-  float envelope[2] = {0.0f, 0.0f}; // Per-channel state (L, R)
+  float globalEnv = 0.0f;
   bool prepared = false;
 };

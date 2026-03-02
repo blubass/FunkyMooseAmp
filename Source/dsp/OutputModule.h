@@ -18,6 +18,11 @@
 class OutputModule {
 public:
   void prepare(const juce::dsp::ProcessSpec &spec) {
+    sampleRate = spec.sampleRate;
+    limiter.prepare(spec);
+    limiter.setThreshold(0.0f);
+    limiter.setRelease(25.0f);
+
     outGain.reset();
     outGain.prepare(spec);
     outGain.setRampDurationSeconds(0.05);
@@ -101,14 +106,18 @@ public:
     // Output gain + Auto Gain Compensation
     float finalDb = outDb;
     if (autoGainEnabled) {
+      const float noiseFloor = 0.001f; // -60dB threshold to stop gain hunting
       const float inLvl = inRmsSmooth + 0.0001f;
       const float outLvl = outRmsSmooth / (autoGainComp + 0.0001f) + 0.0001f;
 
-      float targetGain = inLvl / (outLvl + 0.0001f);
-      targetGain = juce::jlimit(0.1f, 10.0f, targetGain);
+      // Only adjust if enough signal exists (Prevents noise floor crawl)
+      if (inLvl > noiseFloor) {
+        float targetGain = inLvl / (outLvl + 0.0001f);
+        targetGain = juce::jlimit(0.1f, 8.0f, targetGain);
 
-      const float alpha = 0.995f;
-      autoGainComp = autoGainComp * alpha + targetGain * (1.0f - alpha);
+        const float alpha = 0.995f;
+        autoGainComp = autoGainComp * alpha + targetGain * (1.0f - alpha);
+      }
 
       finalDb += juce::Decibels::gainToDecibels(autoGainComp);
     }
@@ -154,6 +163,11 @@ public:
     outRmsSmooth += alpha * (outRms - outRmsSmooth);
     inRmsAtomic.store(inRmsSmooth, std::memory_order_relaxed);
     outRmsAtomic.store(outRmsSmooth, std::memory_order_relaxed);
+
+    // Hard Brickwall Limiter (Last Resort)
+    juce::dsp::AudioBlock<float> finalBlock(buffer);
+    juce::dsp::ProcessContextReplacing<float> finalCtx(finalBlock);
+    limiter.process(finalCtx);
   }
 
 private:
@@ -186,4 +200,6 @@ private:
           sampleRate, monoMakerFreq);
     }
   }
+
+  juce::dsp::Limiter<float> limiter;
 };

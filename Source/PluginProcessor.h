@@ -156,6 +156,7 @@ public:
   std::atomic<float> *monoMakerParam = nullptr;
   std::atomic<float> *monoMakerOnParam = nullptr;
   std::atomic<float> *autoGainParam = nullptr;
+  std::atomic<float> *forceMonoInputParam = nullptr;
 
 private:
   juce::AudioBuffer<float> dryBuffer;

@@ -1,13 +1,21 @@
 #include "FunkyMooseLookAndFeel.h"
 
-FunkyMooseLookAndFeel::FunkyMooseLookAndFeel() {}
+FunkyMooseLookAndFeel::FunkyMooseLookAndFeel() {
+  setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xff121212));
+  setColour(juce::PopupMenu::textColourId, juce::Colours::white);
+  setColour(juce::PopupMenu::headerTextColourId,
+            juce::Colours::white.withAlpha(0.6f));
+  setColour(juce::PopupMenu::highlightedBackgroundColourId,
+            juce::Colour(0xfff0e040).withAlpha(0.3f));
+  setColour(juce::PopupMenu::highlightedTextColourId, juce::Colours::white);
+}
 
 void FunkyMooseLookAndFeel::drawRotarySlider(
     juce::Graphics &g, int x, int y, int width, int height, float sliderPos,
     float rotaryStartAngle, float rotaryEndAngle, juce::Slider &slider) {
 
-  const juce::String id = slider.getComponentID();
-  bool isMaster = (id == "MASTER");
+  const juce::String id = slider.getComponentID().trim();
+  bool isMaster = id.equalsIgnoreCase("MASTER");
 
   // Create a unique key for this knob type and size
   juce::String cacheKey =
@@ -16,22 +24,22 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
 
   // --- Dynamic Color Logic ---
   juce::Colour baseColour = juce::Colour(0xff303030); // Default Dark
-  if (id == "AMP")
+  if (id.equalsIgnoreCase("AMP"))
     baseColour = juce::Colour::fromRGB(200, 50, 50);
-  else if (id == "COMP")
+  else if (id.equalsIgnoreCase("COMP"))
     baseColour = juce::Colour::fromRGB(40, 90, 200);
-  else if (id == "OCT")
+  else if (id.equalsIgnoreCase("OCT"))
     baseColour = juce::Colour::fromRGB(220, 130, 30);
-  else if (id == "ENV")
+  else if (id.equalsIgnoreCase("ENV"))
     baseColour = juce::Colour::fromRGB(50, 160, 60);
-  else if (id == "PH")
+  else if (id.equalsIgnoreCase("PH"))
     baseColour = juce::Colour::fromRGB(160, 60, 170);
-  else if (id == "CH")
+  else if (id.equalsIgnoreCase("CH"))
     baseColour = juce::Colour::fromRGB(30, 170, 180);
-  else if (id == "MASTER")
+  else if (isMaster)
     baseColour = juce::Colour(0xff454545);
   else if (id.isEmpty())
-    baseColour = juce::Colour::fromRGB(180, 180, 180);
+    baseColour = juce::Colour(0xffb4b4b4);
 
   // If cache is invalid, pre-render the static parts
   if (cache.base.isNull() || cache.lastCol != baseColour) {
@@ -72,13 +80,12 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
       shadow.addEllipse(bounds);
 
       // 1. Soft Ambient / Directional Shadow (Wide & Soft)
-      juce::DropShadow dsAmbient(
-          juce::Colours::black.withAlpha(isMaster ? 0.65f : 0.55f), 14, {2, 4});
+      juce::DropShadow dsAmbient(juce::Colours::black.withAlpha(0.55f), 14,
+                                 {2, 4});
       dsAmbient.drawForPath(ig, shadow);
 
       // 2. Core Shadow (Darker, tighter, pulling down-right)
-      juce::DropShadow dsCore(
-          juce::Colours::black.withAlpha(isMaster ? 0.85f : 0.75f), 8, {1, 2});
+      juce::DropShadow dsCore(juce::Colours::black.withAlpha(0.75f), 8, {1, 2});
       dsCore.drawForPath(ig, shadow);
 
       // 3. Contact Shadow (Very tight, anchors the knob to the plate)
@@ -91,8 +98,11 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     auto outer = bounds;
     ig.setColour(juce::Colours::black.withAlpha(isMaster ? 0.45f : 0.35f));
     ig.fillEllipse(outer.translated(1.2f, 2.2f).reduced(6.0f));
+
+    // Core of the knob body (Always solid)
     ig.setColour(juce::Colour::fromRGB(18, 18, 18));
     ig.fillEllipse(outer);
+
     if (isMaster) {
       ig.setColour(juce::Colours::black.withAlpha(0.6f));
       ig.drawEllipse(outer, 1.0f);
@@ -102,10 +112,10 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     ring.addEllipse(outer);
     ring.addEllipse(outer.reduced(3.0f));
     ring.setUsingNonZeroWinding(false);
-    juce::ColourGradient ringGrad(
-        juce::Colours::white.withAlpha(isMaster ? 1.00f : 0.85f), outer.getX(),
-        outer.getY(), juce::Colours::black.withAlpha(1.00f), outer.getRight(),
-        outer.getBottom(), false);
+    juce::ColourGradient ringGrad(juce::Colours::white.withAlpha(0.85f),
+                                  outer.getX(), outer.getY(),
+                                  juce::Colours::black.withAlpha(1.00f),
+                                  outer.getRight(), outer.getBottom(), false);
     ig.setGradientFill(ringGrad);
     ig.fillPath(ring);
     ig.setColour(juce::Colours::black.withAlpha(0.95f));
@@ -113,7 +123,7 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
 
     const int ticks = 36;
     auto ringR = (outer.getWidth() * 0.5f) - 2.0f;
-    ig.setColour(juce::Colours::black.withAlpha(isMaster ? 0.08f : 0.18f));
+    ig.setColour(juce::Colours::black.withAlpha(0.18f));
     for (int i = 0; i < ticks; ++i) {
       float a = juce::MathConstants<float>::twoPi * (float)i / (float)ticks;
       float x1 = cx + std::cos(a) * (ringR - 1.5f);
@@ -129,7 +139,11 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
       ig.setColour(baseColour.withAlpha(0.10f / i));
       ig.drawEllipse(cap.expanded(i), 1.5f);
     }
-    float bottomDarken = isMaster ? 0.95f : (id == "AMP" ? 0.88f : 0.85f);
+
+    // Minimal shadow for Master knobs to maintain solid metallic look
+    float bottomDarken =
+        isMaster ? 0.95f : (id.equalsIgnoreCase("AMP") ? 0.88f : 0.85f);
+
     juce::ColourGradient capGrad(baseColour.brighter(0.8f), cx - radius * 0.4f,
                                  cy - radius * 0.4f,
                                  baseColour.darker(bottomDarken),
@@ -154,16 +168,13 @@ void FunkyMooseLookAndFeel::drawRotarySlider(
     ig.setGradientFill(bevelDark);
     ig.drawEllipse(cap.reduced(0.5f), 2.5f);
 
-    if (id == "AMP") {
+    if (id.equalsIgnoreCase("AMP")) {
       ig.setColour(juce::Colours::white.withAlpha(0.18f));
       ig.drawEllipse(cap.reduced(1.4f), 1.0f);
     }
-    ig.setColour(juce::Colours::black.withAlpha(id == "AMP" ? 0.75f : 0.65f));
+    ig.setColour(juce::Colours::black.withAlpha(
+        id.equalsIgnoreCase("AMP") ? 0.75f : 0.65f));
     ig.drawEllipse(cap.reduced(2.2f), 1.0f);
-    if (isMaster) {
-      ig.setColour(juce::Colours::black.withAlpha(0.25f));
-      ig.drawEllipse(cap.reduced(3.5f), 1.2f);
-    }
 
     cache.lastCol = baseColour;
   }
@@ -338,102 +349,269 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
                                              juce::ToggleButton &button,
                                              bool shouldDrawButtonAsHighlighted,
                                              bool shouldDrawButtonAsDown) {
-  auto r = button.getLocalBounds().toFloat().reduced(2.0f);
-
+  // Fix: Static size for the button itself (54x24) centered in component
+  // (84x40)
   const bool on = button.getToggleState();
   const bool hover =
       button.isMouseOverOrDragging() || shouldDrawButtonAsHighlighted;
   const bool down = button.isMouseButtonDown() || shouldDrawButtonAsDown;
 
-  // Darker Drop Shadow for the Button
-  juce::DropShadow btnShadow(juce::Colours::black.withAlpha(0.95f), 8, {3, 5});
+  auto buttonName = button.getName();
+  const bool isMainToggle = (buttonName == "mainToggle");
+  const bool isMono = (buttonName == "monoInput");
+  const bool isValues = (buttonName == "tooltipToggle");
+  const bool isTuner = (buttonName == "TUNER");
+
+  float targetW = 54.0f;
+  float targetH = 24.0f;
+  if (isMono || isValues || isTuner) {
+    targetW = 88.0f; // Significantly wider
+    targetH = 30.0f; // Taller
+  }
+  auto r =
+      button.getLocalBounds().toFloat().withSizeKeepingCentre(targetW, targetH);
+
+  // --- 1. PRE-BODY GLOW (HALO) - Subtler & Tighter ---
+  auto lamp = r.reduced(4.0f);
+  float glowA = on ? 0.45f : (hover ? 0.12f : 0.03f);
+  if (down)
+    glowA *= 1.1f;
+
+  if (on) {
+    auto bloomCol =
+        (isValues)
+            ? juce::Colour(0xff22ff22)
+            : (isMono ? juce::Colour::fromRGB(45, 120, 45)
+                      : (isMainToggle ? juce::Colour::fromRGB(255, 40, 0)
+                                      : juce::Colour::fromRGB(35, 95, 35)));
+
+    // Realistic tight halo (Very steep exponential falloff)
+    for (int i = 1; i <= 8; ++i) {
+      float exp = 1.25f * i; // Max expansion ~10px
+      float alpha = glowA * 0.45f * std::exp(-0.75f * (float)i);
+      g.setColour(bloomCol.withAlpha(alpha));
+      g.fillRoundedRectangle(lamp.expanded(exp), 5.0f + exp);
+    }
+  }
+
+  // --- 2. THE BUTTON BODY ---
+  juce::DropShadow btnShadow(juce::Colours::black.withAlpha(0.9f), 6, {0, 2});
   juce::Path btnPath;
-  btnPath.addRoundedRectangle(r, 3.0f);
+  btnPath.addRoundedRectangle(r, 4.0f);
   btnShadow.drawForPath(g, btnPath);
 
-  // Contact Shadow (Grounding the button)
-  g.setColour(juce::Colours::black.withAlpha(0.95f));
-  g.fillRoundedRectangle(r.translated(3.5f, 4.0f), 3.0f);
-
-  // Button Body (Molded Metal/Plastic with Gradient)
-  juce::ColourGradient btnGrad(juce::Colour(0xff555555), r.getX(), r.getY(),
-                               juce::Colour(0xff0a0a0a), r.getRight(),
-                               r.getBottom(), false);
+  juce::ColourGradient btnGrad(juce::Colour(0xff454545), r.getCentreX(),
+                               r.getY(), juce::Colour(0xff050505),
+                               r.getCentreX(), r.getBottom(), false);
   g.setGradientFill(btnGrad);
-  g.fillRoundedRectangle(r, 3.0f);
+  g.fillRoundedRectangle(r, 4.0f);
 
-  // Metallic Rim (Hard Bevel)
-  g.setColour(juce::Colours::white.withAlpha(0.7f));
-  g.drawRoundedRectangle(r.reduced(0.5f), 3.0f, 2.0f);
-  g.setColour(juce::Colours::black.withAlpha(1.0f));
-  g.drawRoundedRectangle(r, 3.0f, 1.8f);
+  if (isValues) {
+    g.setColour(juce::Colours::white.withAlpha(0.6f));
+    g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 1.8f);
+  } else {
+    g.setColour(juce::Colours::black.withAlpha(0.9f));
+    g.drawRoundedRectangle(r, 4.0f, 1.8f);
+  }
 
-  auto lamp = r.reduced(4.0f);
-  // Re-use dynamic color logic just in case, but usually fixed in header
-  // Using accentColor from class member
-  // Special cyan color for auto-gain toggles
-  auto buttonName = button.getName();
-  bool isAutoGain =
-      (buttonName == "ampAutoGain" || buttonName == "compAutoMakeup" ||
-       buttonName == "autoGain");
-  // Lamp OFF is duller and dirtier
+  // --- 3. THE LAMP (ILLUMINATED AREA) ---
   auto lampCol =
-      on ? (isAutoGain ? juce::Colour(0xff44ccff) : accentColor)
-         : juce::Colours::white.withAlpha(0.05f); // much duller off-state
+      on ? (isValues
+                ? juce::Colour(0xff22ff22)
+                : ((isMono || isTuner)
+                       ? juce::Colour::fromRGB(65, 185, 65)
+                       : (isMainToggle ? juce::Colour::fromRGB(240, 60, 0)
+                                       : juce::Colour::fromRGB(50, 140, 50))))
+         : (isMono ? juce::Colour::fromRGB(15, 25, 15)
+                   : (isMainToggle ? juce::Colour::fromRGB(12, 12, 12)
+                                   : juce::Colour::fromRGB(12, 20, 12)));
 
-  // Add Oxidation to the metallic rim
-  juce::Random oxRng((int)(r.getX() + r.getY()));
-  g.setColour(
-      juce::Colour(0xffaab0b0).withAlpha(0.35f)); // white/grey oxidation
-  for (int i = 0; i < 15; ++i) {
-    g.fillEllipse(r.getX() + oxRng.nextFloat() * r.getWidth(),
-                  r.getY() + oxRng.nextFloat() * r.getHeight(),
-                  1.0f + oxRng.nextFloat() * 2.5f,
-                  1.0f + oxRng.nextFloat() * 2.0f);
-  }
-
-  float glowA = on ? 0.65f : (hover ? 0.15f : 0.05f);
-  if (down)
-    glowA *= 1.2f;
-
-  // Subtle pulsing afterglow for active buttons (flickering old LED)
   if (on) {
-    float time = (float)juce::Time::getMillisecondCounterHiRes() * 0.001f;
-    float pulse = 0.85f + 0.15f * std::sin(time * 1.5f);    // Slow pulse
-    float flicker = 0.95f + 0.05f * std::sin(time * 30.0f); // Fast flicker
-    glowA *= (pulse * flicker);
+    // Perfectly Symmetrical Fill with Radial Core Glow
+    juce::ColourGradient coreGlow(lampCol.brighter(0.5f), lamp.getCentreX(),
+                                  lamp.getCentreY(), lampCol, lamp.getCentreX(),
+                                  lamp.getY(), true);
+    g.setGradientFill(coreGlow);
+    g.fillRoundedRectangle(lamp, 3.0f);
+
+    // Smooth internal highlight
+    g.setColour(juce::Colours::white.withAlpha(0.15f));
+    g.drawRoundedRectangle(lamp.reduced(1.0f), 3.0f, 1.0f);
+  } else {
+    g.setColour(lampCol);
+    g.fillRoundedRectangle(lamp, 3.0f);
   }
 
-  g.setColour(lampCol.withAlpha(glowA * 0.35f));
-  g.fillRoundedRectangle(lamp.expanded(3.0f), 4.0f);
+  // --- 4. CHROME REFLEX HIGHLIGHT (Premium Glassy Look) ---
+  {
+    auto reflexArea = lamp.reduced(0.5f);
+    reflexArea.setHeight(reflexArea.getHeight() * 0.45f);
 
-  g.setColour(lampCol.withAlpha(glowA));
-  g.fillRoundedRectangle(lamp, 3.0f);
+    juce::ColourGradient chromeGrad(
+        juce::Colours::white.withAlpha(on ? 0.28f : 0.14f), reflexArea.getX(),
+        reflexArea.getY(), juce::Colours::white.withAlpha(0.0f),
+        reflexArea.getX(), reflexArea.getBottom(), false);
+    g.setGradientFill(chromeGrad);
+    g.fillRoundedRectangle(reflexArea, 2.5f);
 
-  juce::ColourGradient grad(juce::Colours::white.withAlpha(on ? 0.12f : 0.06f),
-                            lamp.getCentreX(), lamp.getY(),
-                            juce::Colours::transparentWhite, lamp.getCentreX(),
-                            lamp.getBottom(), false);
-  g.setGradientFill(grad);
-  g.fillRoundedRectangle(lamp, 3.0f);
-
-  // Draw Text (if any)
-  if (button.getButtonText().isNotEmpty()) {
-    g.setColour(juce::Colours::white.withAlpha(on ? 0.95f : 0.5f));
-    g.setFont(juce::Font(13.0f, juce::Font::bold));
-    g.drawFittedText(button.getButtonText(), r.toNearestInt(),
-                     juce::Justification::centred, 1);
+    // Diagonal "Sweep" highlight for extra chrome feel
+    g.setColour(juce::Colours::white.withAlpha(on ? 0.08f : 0.04f));
+    juce::Path sweep;
+    sweep.addRectangle(lamp.getX() + 5.0f, lamp.getY(), 12.0f,
+                       lamp.getHeight());
+    g.saveState();
+    g.addTransform(juce::AffineTransform::rotation(0.4f, lamp.getCentreX(),
+                                                   lamp.getCentreY()));
+    g.reduceClipRegion(lamp.toNearestInt());
+    g.fillPath(sweep);
+    g.restoreState();
   }
+
+  // Special Highlight Strip solely for Values
+  if (on && isValues) {
+    g.setColour(juce::Colours::white.withAlpha(0.45f));
+    g.drawLine(lamp.getX() + 1.0f, lamp.getY() + 0.5f, lamp.getRight() - 1.0f,
+               lamp.getY() + 0.5f, 1.0f);
+  }
+
+  // Deep shadow line for recessed look
+  g.setColour(juce::Colours::black.withAlpha(on ? 0.6f : 0.8f));
+  g.drawLine(lamp.getX() + 1.0f, lamp.getBottom() - 0.5f,
+             lamp.getRight() - 1.0f, lamp.getBottom() - 0.5f, 1.0f);
+
+  // Symbols ONLY when OFF
+  if (!on && isMainToggle) {
+    g.setColour(juce::Colours::white.withAlpha(0.08f));
+    float cx = lamp.getCentreX();
+    float cy = lamp.getCentreY();
+    g.drawRect(cx - 0.75f, cy - 8.0f, 1.5f, 5.0f);
+    g.drawEllipse(cx - 3.5f, cy + 3.0f, 7.0f, 7.0f, 1.5f);
+  }
+
+  if (button.getButtonText().isNotEmpty() &&
+      (isMono || isValues || isTuner || buttonName == "punchButton" ||
+       buttonName.containsIgnoreCase("auto"))) {
+    float fontSize = (isMono || isTuner) ? 14.5f : (isValues ? 16.0f : 13.0f);
+    g.setFont(juce::Font(fontSize, juce::Font::bold));
+
+    // Vertical correction: move text down by 1.0px (Final polish for centering)
+    auto textR = r.translated(0, 1.0f);
+
+    if (on) {
+      g.setColour(juce::Colours::black.withAlpha(0.9f));
+      g.drawFittedText(button.getButtonText(), textR.toNearestInt(),
+                       juce::Justification::centred, 1);
+    } else {
+      g.setColour(juce::Colours::white.withAlpha(
+          (isMono || isTuner || isValues) ? 0.85f : 0.35f));
+      g.drawFittedText(button.getButtonText(), textR.toNearestInt(),
+                       juce::Justification::centred, 1);
+    }
+  }
+}
+
+void FunkyMooseLookAndFeel::drawButtonBackground(
+    juce::Graphics &g, juce::Button &button,
+    const juce::Colour &backgroundColour, bool shouldDrawButtonAsHighlighted,
+    bool shouldDrawButtonAsDown) {
+  auto area = button.getLocalBounds().toFloat();
+  const bool hover = shouldDrawButtonAsHighlighted;
+  const bool down = shouldDrawButtonAsDown;
+  g.setColour(
+      juce::Colours::black.withAlpha(down ? 0.9f : (hover ? 0.8f : 0.7f)));
+  g.fillRoundedRectangle(area, 4.0f);
+  juce::Colour rimCol = juce::Colours::white.withAlpha(0.2f);
+  if (button.getButtonText().containsIgnoreCase("Presets")) {
+    rimCol = juce::Colour(0xfff0e040);
+  }
+  g.setColour(rimCol.withAlpha(hover ? 0.4f : 0.2f));
+  g.drawRoundedRectangle(area.reduced(1.0f), 4.0f, 1.2f);
+}
+
+void FunkyMooseLookAndFeel::drawButtonText(juce::Graphics &g,
+                                           juce::TextButton &button,
+                                           bool shouldDrawButtonAsHighlighted,
+                                           bool shouldDrawButtonAsDown) {
+  auto area = button.getLocalBounds().toFloat();
+  const bool hover = shouldDrawButtonAsHighlighted;
+  const bool down = shouldDrawButtonAsDown;
+  g.setFont(juce::Font(14.0f, juce::Font::bold));
+  g.setColour(juce::Colours::black.withAlpha(0.8f));
+  g.drawFittedText(button.getButtonText(), area.translated(1, 1).toNearestInt(),
+                   juce::Justification::centred, 1);
+  g.setColour(
+      juce::Colours::white.withAlpha(down ? 1.0f : (hover ? 0.95f : 0.85f)));
+  g.drawFittedText(button.getButtonText(), area.toNearestInt(),
+                   juce::Justification::centred, 1);
 }
 
 void FunkyMooseLookAndFeel::drawBubble(juce::Graphics &g,
                                        juce::BubbleComponent &bubble,
                                        const juce::Point<float> &tip,
                                        const juce::Rectangle<float> &body) {
-  g.setColour(juce::Colours::black.withAlpha(0.5f));
-  g.fillRoundedRectangle(body.translated(2.0f, 2.0f), 6.0f);
-  g.setColour(juce::Colour(0xff1a1a1a));
+  g.setColour(juce::Colours::black.withAlpha(0.9f));
   g.fillRoundedRectangle(body, 6.0f);
-  g.setColour(accentColor);
-  g.drawRoundedRectangle(body, 6.0f, 1.2f);
+  g.setColour(juce::Colours::white.withAlpha(0.18f));
+  g.drawRoundedRectangle(body.reduced(0.5f), 6.0f, 1.2f);
+}
+
+// --- POPUP MENU STYLING ---
+juce::Font FunkyMooseLookAndFeel::getPopupMenuFont() {
+  return juce::Font(22.0f, juce::Font::bold); // Large & Bold for Presets
+}
+
+void FunkyMooseLookAndFeel::drawPopupMenuItem(
+    juce::Graphics &g, const juce::Rectangle<int> &area, bool isSeparator,
+    bool isActive, bool isHighlighted, bool isTicked, bool hasSubMenu,
+    const juce::String &text, const juce::String &shortcutKeyText,
+    const juce::Drawable *icon, const juce::Colour *textColour) {
+  if (isSeparator) {
+    auto r = area.reduced(5, 0);
+    g.setColour(juce::Colours::white.withAlpha(0.1f));
+    g.drawLine((float)r.getX(), (float)r.getCentreY(), (float)r.getRight(),
+               (float)r.getCentreY(), 0.5f);
+    return;
+  }
+
+  auto r = area.toFloat();
+
+  if (isHighlighted && isActive) {
+    // Warm Vintage Gold highlight
+    g.setColour(juce::Colour(0xfff0e040).withAlpha(0.25f));
+    g.fillRoundedRectangle(r.reduced(2.0f), 4.0f);
+    g.setColour(juce::Colour(0xfff0e040).withAlpha(0.5f));
+    g.drawRoundedRectangle(r.reduced(2.0f), 4.0f, 1.0f);
+  }
+
+  // Text Color logic
+  g.setColour(isHighlighted ? juce::Colours::white
+                            : juce::Colours::white.withAlpha(0.75f));
+  if (!isActive)
+    g.setColour(juce::Colours::white.withAlpha(0.2f));
+
+  g.setFont(getPopupMenuFont());
+
+  auto textRect = r.reduced(12.0f, 0);
+  g.drawFittedText(text, textRect.toNearestInt(),
+                   juce::Justification::centredLeft, 1);
+
+  if (isTicked) {
+    auto tickRect = r.removeFromLeft(24.0f).reduced(6.0f);
+    g.setColour(juce::Colour(0xfff0e040));
+    g.fillEllipse(tickRect.getCentreX() - 3, tickRect.getCentreY() - 3, 6, 6);
+  }
+}
+
+void FunkyMooseLookAndFeel::drawPopupMenuSectionHeader(
+    juce::Graphics &g, const juce::Rectangle<int> &area,
+    const juce::String &sectionName) {
+  g.setColour(juce::Colours::white.withAlpha(0.45f));
+  g.setFont(juce::Font(16.0f, juce::Font::bold | juce::Font::italic));
+  g.drawFittedText(sectionName, area.reduced(12, 0),
+                   juce::Justification::centredLeft, 1);
+
+  // Bottom underline for section header
+  g.setColour(juce::Colours::white.withAlpha(0.1f));
+  g.drawLine((float)area.getX(), (float)area.getBottom() - 1.0f,
+             (float)area.getRight(), (float)area.getBottom() - 1.0f, 0.5f);
 }

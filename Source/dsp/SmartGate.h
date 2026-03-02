@@ -84,26 +84,44 @@ public:
       sustainCounter = std::max(0, sustainCounter - numSamples * 3);
     }
 
-    // 4. Calculate Target Gain (Steeper Expansion)
+    // 4. Calculate Target Gain (Steeper Expansion with Hold)
     float targetGain = 1.0f;
     if (maxLevelBlock < currentThreshold) {
-      float sustainMultiplier = (float)sustainCounter / (float)sampleRate;
-      float effectiveRange =
-          0.008f + (sustainMultiplier * 0.12f); // Deeper floor
-
-      float ratio = maxLevelBlock / (currentThreshold + 0.000001f);
-      targetGain =
-          effectiveRange + (1.0f - effectiveRange) * std::pow(ratio, 2.5f);
+      if (holdCounter > 0) {
+        holdCounter -= numSamples;
+        targetGain = 1.0f;
+      } else {
+        float sustainMultiplier = (float)sustainCounter / (float)sampleRate;
+        float effectiveRange = 0.005f + (sustainMultiplier * 0.12f);
+        float ratio = maxLevelBlock / (currentThreshold + 0.000001f);
+        targetGain =
+            effectiveRange + (1.0f - effectiveRange) * std::pow(ratio, 3.0f);
+      }
+    } else {
+      holdCounter = (int)(sampleRate * 0.05); // 50ms hold
+      targetGain = 1.0f;
     }
 
     // 5. Apply Gain (Fast Loop)
     gateGain.setTargetValue(targetGain);
     lastGateActivity = 1.0f - targetGain;
 
+    // PERFORMANCE: If gate is fully closed and done smoothing, just clear and
+    // exit
+    if (targetGain < 0.0001f && !gateGain.isSmoothing()) {
+      block.clear();
+      return;
+    }
+
+    juce::ScopedNoDenormals noDenormals;
     for (int i = 0; i < numSamples; ++i) {
       float g = gateGain.getNextValue();
-      for (int ch = 0; ch < numChannels; ++ch) {
-        block.getChannelPointer(ch)[i] *= g;
+      if (g < 0.0001f) {
+        for (int ch = 0; ch < numChannels; ++ch)
+          block.getChannelPointer(ch)[i] = 0.0f;
+      } else {
+        for (int ch = 0; ch < numChannels; ++ch)
+          block.getChannelPointer(ch)[i] *= g;
       }
     }
   }
@@ -121,4 +139,5 @@ private:
   juce::SmoothedValue<float> gateGain;
   float noiseFloorLin = 0.0001f;
   int sustainCounter = 0;
+  int holdCounter = 0;
 };

@@ -41,6 +41,9 @@ public:
     upScratch.assign((size_t)maxBlockSize, 0.0f);
 
     prepared = true;
+
+    dryDelayLine.assign((size_t)(delayLineSize * numChannels), 0.0f);
+    delayPtr = 0;
   }
 
   void reset() {
@@ -50,6 +53,8 @@ public:
     shifter.reset();
     shifterUp.reset();
     preShifterHPF.reset();
+    std::fill(dryDelayLine.begin(), dryDelayLine.end(), 0.0f);
+    delayPtr = 0;
   }
 
   void setOctaveOn(bool on) noexcept { octOn = on; }
@@ -68,10 +73,12 @@ public:
     if (!prepared)
       return;
 
-    auto &buffer = ctx.getOutputBlock();
+    juce::dsp::AudioBlock<float> &buffer = ctx.getOutputBlock();
     const int nSamp = (int)buffer.getNumSamples();
     if (nSamp <= 0)
       return;
+
+    juce::ScopedNoDenormals noDenormals;
 
     const int chs =
         juce::jmin((int)buffer.getNumChannels(), juce::jmax(1, numChannels));
@@ -110,6 +117,10 @@ public:
       else
         std::fill(upScratch.begin(), upScratch.begin() + nSamp, 0.0f);
 
+      // Timing constants for mix logic
+      const float mixK = 1.0f;
+      const float dryGain = juce::Decibels::decibelsToGain(0.0f);
+
       for (int i = 0; i < nSamp; ++i) {
         float sOct1 = oct1Sm.getNextValue();
         float sOct2 = oct2Sm.getNextValue();
@@ -119,21 +130,33 @@ public:
         float upVal = upScratch[(size_t)i] * sOct2;
         float wetSignal = (downVal + upVal);
 
-        // Mixing logic
-        float dryWeight = 1.0f - (sMix * 0.5f);
-        float wetWeight = sMix * 1.05f;
-
-        const float preClipGain = juce::Decibels::decibelsToGain(-3.0f);
-        const float clipK = 2.0f; // Softness factor for Tanh
+        // Mix weights: Perfect linear crossfade
+        float dryWeight = 1.0f - sMix;
+        float wetWeight =
+            sMix * 1.1f; // Slight boost to octaves to feel 'present'
 
         for (int ch = 0; ch < chs; ++ch) {
-          const float dry = buffer.getSample(ch, i);
+          // LATENCY COMPENSATION: Delay the dry signal to match shifter
+          float dryRaw = buffer.getSample(ch, i);
 
+          // Store in circular buffer for latency alignment
+          dryDelayLine[(size_t)(delayPtr * numChannels + ch)] = dryRaw;
+        }
+
+        // Read delayed dry signal
+        int readPtr =
+            (delayPtr - getLatencyInSamples() + delayLineSize) % delayLineSize;
+
+        for (int ch = 0; ch < chs; ++ch) {
+          float dryDelayed = dryDelayLine[(size_t)(readPtr * numChannels + ch)];
           float wet = wetSignal * wetWeight;
 
-          const float out = (dry * dryWeight) + wetSignal * wetWeight;
-          buffer.setSample(ch, i, out);
+          // Combine and apply a very soft safety clip to the combined result
+          float mixed = (dryDelayed * dryWeight) + wet;
+          buffer.setSample(ch, i, softClipTanh(mixed, 1.5f));
         }
+
+        delayPtr = (delayPtr + 1) % delayLineSize;
       }
     } else {
       oct1Sm.skip(nSamp);
@@ -151,7 +174,11 @@ public:
           std::exp(-1.0f / (sampleRate * (0.05f + envDecay01 * 0.5f)));
 
       for (int i = 0; i < nSamp; ++i) {
-        const float inAbs = std::abs(buffer.getSample(0, i));
+        // STEREO LINKED DETECTION (Used to be left-only)
+        float inAbsL = std::abs(buffer.getSample(0, i));
+        float inAbsR = (chs > 1) ? std::abs(buffer.getSample(1, i)) : 0.0f;
+        const float inAbs = juce::jmax(inAbsL, inAbsR);
+
         if (inAbs > envFollower)
           envFollower = inAbs + attackCoef * (envFollower - inAbs);
         else
@@ -174,8 +201,8 @@ public:
 
 private:
   static inline float softClipTanh(float x, float k) noexcept {
-    const float a = std::tanh(k);
-    return std::tanh(k * x) / (a != 0.0f ? a : 1.0f);
+    const float a = 0.92f; // Pre-calculated approx for tanh(1.5)
+    return std::tanh(k * x) / a;
   }
 
   void ensureScratch(int needed) {
@@ -218,4 +245,9 @@ private:
 
   // Pre-Shifter HPF for tracking stability
   juce::dsp::IIR::Filter<float> preShifterHPF;
+
+  // Latency compensation for Dry Signal
+  static const int delayLineSize = 4096;
+  std::vector<float> dryDelayLine;
+  int delayPtr = 0;
 };
