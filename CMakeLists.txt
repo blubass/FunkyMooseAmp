@@ -22,7 +22,11 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # --- JUCE ---
-add_subdirectory(JUCE)
+# Usage example:
+# cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="/Users/uwearthurfelchle/Developer/JUCE/install"
+# Alternatively:
+# cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR="/path/to/JUCE/install/lib/cmake/JUCE-8.0.10"
+find_package(JUCE CONFIG REQUIRED)
 
 # ---- Icon Setup ----
 if (APPLE)
