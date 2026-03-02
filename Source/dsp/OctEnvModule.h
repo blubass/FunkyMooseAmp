@@ -131,18 +131,7 @@ public:
 
           float wet = wetSignal * wetWeight;
 
-          // Safety Guard A (Octaver Wet Airbag):
-          // Only engages if the pitch-shifter misbehaves and throws peaks >
-          // 0.95. Transparent in normal use, prevents cascading "snow"
-          // artifacts.
-          if (std::abs(wet) > 0.95f) {
-            float x = wet * preClipGain;
-            if (!std::isfinite(x))
-              x = 0.0f;
-            wet = softClipTanh(x, clipK);
-          }
-
-          const float out = (dry * dryWeight) + wet;
+          const float out = (dry * dryWeight) + wetSignal * wetWeight;
           buffer.setSample(ch, i, out);
         }
       }

@@ -135,7 +135,9 @@ public:
         if (std::abs(v) > thr) {
           const float s = (v >= 0.0f) ? 1.0f : -1.0f;
           const float t = (std::abs(v) - thr) / (1.0f - thr + 1.0e-6f);
-          v = s * (thr + (1.0f - thr) * std::tanh(t * 2.0f));
+          v = s * (thr +
+                   (1.0f - thr) *
+                       std::tanh(t)); // Fixed: Removed * 2.0f for C1 continuity
         }
         x[i] = v;
         outSum += v * v;

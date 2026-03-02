@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.15)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build Universal Binary" FORCE)
 
-project(FUNKY_MOOSE_AMP VERSION 1.0.2 LANGUAGES C CXX)
+project(FUNKY_MOOSE_AMP VERSION 1.0.3 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -42,7 +42,7 @@ endif()
 juce_add_plugin(FUNKY_MOOSE_AMP
     COMPANY_NAME "Funky Moose Audio"
     PRODUCT_NAME "Funky Moose Amp"
-    VERSION "1.0.2"
+    VERSION "1.0.3"
     BUNDLE_ID "at.uwefelchle.funkymooseamp"
 
     PLUGIN_MANUFACTURER_CODE FMSA
@@ -125,14 +125,22 @@ if (APPLE AND TARGET FUNKY_MOOSE_AMP_Standalone)
         MACOSX_BUNDLE_GUI_IDENTIFIER "at.uwefelchle.funkymooseamp"
     )
 
-    # Force the real ELCH icon into the bundle after build
-    # (JUCE/Xcode currently produce an 8-byte dummy Icon.icns)
     add_custom_command(TARGET FUNKY_MOOSE_AMP_Standalone POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy
         "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns"
         "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../Resources/Icon.icns"
         COMMAND /usr/bin/touch "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../.."
         COMMENT "Enforcing Elch icon over dummy Icon.icns and refreshing bundle..."
+    )
+
+    # Automatic signing with Microphone Entitlements (ad-hoc)
+    # This helps macOS remember the permission across local rebuilds.
+    add_custom_command(TARGET FUNKY_MOOSE_AMP_Standalone POST_BUILD
+        COMMAND codesign --force --deep --sign -
+                --entitlements "${CMAKE_CURRENT_SOURCE_DIR}/Source/mac_entitlements.plist"
+                --options runtime
+                "$<TARGET_FILE:FUNKY_MOOSE_AMP_Standalone>"
+        COMMENT "Signing Standalone with Microphone Entitlements..."
     )
 endif()
 

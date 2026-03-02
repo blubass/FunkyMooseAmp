@@ -199,16 +199,6 @@ public:
         for (int ch = 0; ch < numCh; ++ch) {
           float *data = block.getChannelPointer(ch);
           float x = data[i] * currentGain;
-          // Input Safety / "Notbremse" (Only engages on extreme transient
-          // peaks)
-          if (std::abs(x) > 0.98f) {
-            float cX = x; // No pre-gain, just catching overloads
-            if (!std::isfinite(cX))
-              cX = 0.0f;
-            x = softClipTanh(cX,
-                             1.5f); // Gentle k=1.5f for Amp input protection
-          }
-
           const float dryPreSat = x;
 
           // Tube Saturation (More aggressive, asymmetric for 'Tube' feel)
