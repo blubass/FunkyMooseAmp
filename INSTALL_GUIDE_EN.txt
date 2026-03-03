@@ -6,10 +6,10 @@ Don't worry, it's perfectly safe! Here is how to get the Moose running:
 
 ---
 
-1. INSTALLATION:
+1. INSTALLATION macOS:
    Drag the desired formats (VST3, AU/Component, or App) onto the corresponding folder aliases in the window.
 
-2. FIRST OPEN (Bypass Gatekeeper):
+2. FIRST OPEN macOS (Bypass Gatekeeper):
    - Go to your Applications (or Plug-Ins) folder.
    - RIGHT-CLICK (or Ctrl + Click) on "Funky Moose Amp".
    - Select "Open" from the menu.
@@ -25,6 +25,11 @@ Don't worry, it's perfectly safe! Here is how to get the Moose running:
    If you want to clear the warning for good via Terminal:
    sudo xattr -rd com.apple.quarantine /Library/Audio/Plug-Ins/Components/Funky\ Moose\ Amp.component
    (Enter your password, hit Enter - done.)
+
+5. WINDOWS INSTALLATION:
+   - VST3: Unzip and copy to "C:\Program Files\Common Files\VST3\".
+   - Standalone: Unzip the ".exe" to any location you prefer.
+   - Note: The Windows standalone version uses the same Moose icon as the macOS version.
 
 ---
 🎸 Enjoy the tone! 

@@ -163,6 +163,8 @@ jobs:
 
             ### Installation Windows
             - **VST3**: Entpacken → nach `C:\Program Files\Common Files\VST3\`
+            - **Standalone**: Entpacken → an einen Ort deiner Wahl.
+            - *Hinweis: Die Windows Standalone-Version nutzt dasselbe Elch-Icon wie die macOS-Version.*
 
             ---
             *Bei Problemen oder Feedback → Issues Tab nutzen* 🎸

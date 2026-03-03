@@ -6,10 +6,10 @@ Keine Sorge, das ist völlig normal! Hier ist, wie du den Elch zum Laufen brings
 
 ---
 
-1. INSTALLATION:
+1. INSTALLATION macOS:
    Ziehe die gewünschten Formate (VST3, AU/Component oder App) einfach auf die entsprechenden Ordner-Verknüpfungen im Fenster.
 
-2. ERSTES ÖFFNEN (Gatekeeper umgehen):
+2. ERSTES ÖFFNEN macOS (Gatekeeper umgehen):
    - Gehe in deinen Programme-Ordner (oder Plug-In Ordner).
    - Klicke mit RECHTS (oder Ctrl + Klick) auf "Funky Moose Amp".
    - Wähle "Öffnen" aus dem Menü.
@@ -25,6 +25,11 @@ Keine Sorge, das ist völlig normal! Hier ist, wie du den Elch zum Laufen brings
    Falls du viele Plugins installierst, kannst du die Quarantäne auch manuell im Terminal entfernen:
    sudo xattr -rd com.apple.quarantine /Library/Audio/Plug-Ins/Components/Funky\ Moose\ Amp.component
    (Passwort eingeben, Enter drücken - fertig.)
+
+5. WINDOWS INSTALLATION:
+   - VST3: Entpacke die Datei und kopiere sie nach "C:\Program Files\Common Files\VST3\".
+   - Standalone: Entpacke die ".exe" an einen Ort deiner Wahl.
+   - Hinweis: Die Windows-Version nutzt identisch das Elch-Icon der macOS-Version.
 
 ---
 🎸 Viel Spaß beim Rocken! 
