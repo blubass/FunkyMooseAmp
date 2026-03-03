@@ -360,13 +360,16 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
   const bool isMainToggle = (buttonName == "mainToggle");
   const bool isMono = (buttonName == "monoInput");
   const bool isValues = (buttonName == "tooltipToggle");
-  const bool isTuner = (buttonName == "TUNER");
+  const bool isTuner = (buttonName == "tunerToggle");
 
   float targetW = 54.0f;
   float targetH = 24.0f;
-  if (isMono || isValues || isTuner) {
+  if (isMono || isValues) {
     targetW = 88.0f; // Significantly wider
     targetH = 30.0f; // Taller
+  } else if (isTuner) {
+    targetW = 130.0f; // Wide
+    targetH = 35.0f;  // Thicker (dicker) per user request
   }
   auto r =
       button.getLocalBounds().toFloat().withSizeKeepingCentre(targetW, targetH);
@@ -381,9 +384,12 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
     auto bloomCol =
         (isValues)
             ? juce::Colour(0xff22ff22)
-            : (isMono ? juce::Colour::fromRGB(45, 120, 45)
-                      : (isMainToggle ? juce::Colour::fromRGB(255, 40, 0)
-                                      : juce::Colour::fromRGB(35, 95, 35)));
+            : (isTuner ? juce::Colour(0xff00ffff) // Cyan Blue Bloom
+                       : (isMono ? juce::Colour::fromRGB(
+                                       35, 95, 35) // Darker Green Bloom
+                                 : (isMainToggle
+                                        ? juce::Colour::fromRGB(255, 40, 0)
+                                        : juce::Colour::fromRGB(35, 95, 35))));
 
     // Realistic tight halo (Very steep exponential falloff)
     for (int i = 1; i <= 8; ++i) {
@@ -418,10 +424,13 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
   auto lampCol =
       on ? (isValues
                 ? juce::Colour(0xff22ff22)
-                : ((isMono || isTuner)
-                       ? juce::Colour::fromRGB(65, 185, 65)
-                       : (isMainToggle ? juce::Colour::fromRGB(240, 60, 0)
-                                       : juce::Colour::fromRGB(50, 140, 50))))
+                : (isTuner
+                       ? juce::Colour(0xff00ffff) // Cyan Blue
+                       : (isMono ? juce::Colour::fromRGB(
+                                       50, 145, 50) // Darker saturated green
+                                 : (isMainToggle
+                                        ? juce::Colour::fromRGB(240, 60, 0)
+                                        : juce::Colour::fromRGB(50, 140, 50)))))
          : (isMono ? juce::Colour::fromRGB(15, 25, 15)
                    : (isMainToggle ? juce::Colour::fromRGB(12, 12, 12)
                                    : juce::Colour::fromRGB(12, 20, 12)));
@@ -491,8 +500,12 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
   if (button.getButtonText().isNotEmpty() &&
       (isMono || isValues || isTuner || buttonName == "punchButton" ||
        buttonName.containsIgnoreCase("auto"))) {
-    float fontSize = (isMono || isTuner) ? 14.5f : (isValues ? 16.0f : 13.0f);
-    g.setFont(juce::Font(fontSize, juce::Font::bold));
+    float fontSize =
+        (isTuner) ? 20.0f : (isMono ? 14.5f : (isValues ? 16.0f : 13.0f));
+    auto font = juce::Font(fontSize, juce::Font::bold);
+    if (isTuner)
+      font.setHorizontalScale(1.15f); // Stretch text slightly for length
+    g.setFont(font);
 
     // Vertical correction: move text down by 1.0px (Final polish for centering)
     auto textR = r.translated(0, 1.0f);

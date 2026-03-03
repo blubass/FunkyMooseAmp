@@ -183,7 +183,7 @@ private:
       }
 
       // Draw numbering scale subtly along the bottom/right edge
-      g.setFont(juce::FontOptions(10.0f, juce::Font::bold));
+      g.setFont(juce::FontOptions(12.0f, juce::Font::bold));
       int numLabels = 5;
       for (int i = 0; i < numLabels; ++i) {
         float frac = (float)i / (float)(numLabels - 1);
@@ -206,12 +206,17 @@ private:
                      false);
         } else {
           float lx = inner.getX() + frac * inner.getWidth();
+
+          // Shift labels slightly: -60 moves a bit right, 0 moves a bit left.
+          // Corrected to keep -60 OUTSIDE the bar, not on top of it.
+          float xShift = (i == 0) ? 1.5f : (i == numLabels - 1 ? -3.5f : 0.0f);
+
           g.setColour(juce::Colours::black.withAlpha(0.8f));
-          g.drawText(numText, (int)(lx - 15), (int)(inner.getY() + 2), 30, 12,
-                     juce::Justification::centred, false);
+          g.drawText(numText, (int)(lx - 15 + xShift), (int)(inner.getY() + 2),
+                     30, 12, juce::Justification::centred, false);
           g.setColour(juce::Colour(0xffa0a0a0).withAlpha(0.6f));
-          g.drawText(numText, (int)(lx - 16), (int)(inner.getY() + 1), 30, 12,
-                     juce::Justification::centred, false);
+          g.drawText(numText, (int)(lx - 16 + xShift), (int)(inner.getY() + 1),
+                     30, 12, juce::Justification::centred, false);
         }
       }
 

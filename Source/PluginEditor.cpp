@@ -227,7 +227,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   content.addAndMakeVisible(monoMakerToggle);
 
   tunerToggle.setButtonText("TUNER");
-  tunerToggle.setName("TUNER");
+  tunerToggle.setName("tunerToggle");
   tunerToggle.setClickingTogglesState(true);
   tunerToggle.setColour(juce::ToggleButton::textColourId, juce::Colours::white);
   content.addAndMakeVisible(tunerToggle);
@@ -1445,7 +1445,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.setColour(currentPalette.labelText.withAlpha(0.7f));
     drawLabel(
         g,
-        {b.getX() - 12.0f, b.getBottom() + 2.0f, b.getWidth() + 24.0f, 20.0f},
+        {b.getX() - 12.0f, b.getBottom() - 1.0f, b.getWidth() + 24.0f, 20.0f},
         "DRY/WET", 15.0f, juce::Justification::centredTop);
   }
 
@@ -1455,7 +1455,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.setColour(currentPalette.labelText.withAlpha(0.7f));
 
     drawLabel(g,
-              {bK.getX() - 20.0f, bK.getBottom() + 2.0f, bK.getWidth() + 40.0f,
+              {bK.getX() - 20.0f, bK.getBottom() - 1.0f, bK.getWidth() + 40.0f,
                20.0f},
               "MONO MAKER", 14.5f, juce::Justification::centredTop);
   }
@@ -1521,7 +1521,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     g.setColour(currentPalette.labelText.withAlpha(0.7f));
     drawLabel(
         g,
-        {b.getX() - 20.0f, b.getBottom() + 2.0f, b.getWidth() + 40.0f, 20.0f},
+        {b.getX() - 20.0f, b.getBottom() - 1.0f, b.getWidth() + 40.0f, 20.0f},
         "IR MIX", 14.5f, juce::Justification::centredTop);
   }
 
@@ -1950,7 +1950,7 @@ FunkyMooseAudioProcessorEditor::getLayout() const {
   const float wAmp = std::floor(wLeftCol * 0.55f); // Amp is 55% of LeftCol
 
   // 1. Top Row (Input Meter | Title)
-  const float hTop = std::floor(content.getHeight() * 0.14f);
+  const float hTop = std::floor(content.getHeight() * 0.16f);
   auto topRow = content.removeFromTop(hTop);
   content.removeFromTop(G);
 
@@ -2091,9 +2091,9 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   inVu.setBounds(inVuBounds);
   tunerOverlay->setBounds(inVuBounds);
 
-  // Tuner Toggle placement: In the top right corner of the panel area
-  // Tuner Toggle: Larger & Longer for better readability
-  tunerToggle.setBounds(L.meter.getRight() - 95, L.meter.getY() + 8, 85, 26);
+  // Tuner Toggle placement: Horizontal and wide, centered under the meter bar
+  tunerToggle.setBounds(L.meter.getCentreX() - 65, L.meter.getY() + 85, 130,
+                        32);
 
   // Slimmer Output Meter (Centred Vertically)
   auto outRect = L.outVuArea.reduced(16.0f); // Match Input Meter margin
