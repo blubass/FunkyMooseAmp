@@ -30,10 +30,10 @@ find_package(JUCE CONFIG REQUIRED)
 
 # ---- Icon Setup ----
 if (APPLE)
-    set(FUNKY_ICON_ARG ICON_BIG "Source/Assets/FunkyMoose.icns")
+    set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns")
 elseif (WIN32)
-    set(FUNKY_ICON_ARG ICON_BIG "Source/Assets/FunkyMoose.ico"
-                       ICON_SMALL "Source/Assets/FunkyMoose.ico")
+    set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.ico"
+                       ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.ico")
 else()
     set(FUNKY_ICON_ARG "")
 endif()
