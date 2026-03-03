@@ -239,6 +239,9 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   content.addAndMakeVisible(statsHUD);
   statsHUD.setInterceptsMouseClicks(false, false);
 
+  content.addAndMakeVisible(midiIndicator);
+  midiIndicator.setInterceptsMouseClicks(false, false);
+
   // NEW: Mono Input Toggle (Standalone focus)
   monoInputButton.setButtonText("MONO");
   monoInputButton.setName("monoInput"); // ID for LookAndFeel logic
@@ -2053,6 +2056,10 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   monoInputButton.setBounds(statsHUD.getX() - 100, (int)(topY - 3.0f), 95,
                             (int)boxH);
 
+  // MIDI Indicator (Left of Mono Toggle)
+  midiIndicator.setBounds(monoInputButton.getX() - 36, (int)(topY + 5.0f), 28,
+                          20);
+
   // Ensure visibility
   presetSelector.toFront(false);
   savePresetButton.toFront(false);
@@ -2521,8 +2528,17 @@ void FunkyMooseAudioProcessorEditor::timerCallback() {
 
   // Stats Update
   cpuUsage = processor.getCPUUsage();
-  latencySamples = processor.getLatencySamples();
-  statsHUD.update(cpuUsage, latencySamples);
+  statsHUD.setCPU(cpuUsage);
+
+  // MIDI Activity Indicator update (polled from processor)
+  float pMidi = processor.getMidiActivity();
+  if (pMidi > 0.001f) {
+    midiActivityIndicatorLevel = 1.0f;  // Reset peak
+    processor.midiActivity.store(0.0f); // Consume the event
+  } else {
+    midiActivityIndicatorLevel *= 0.88f; // Smooth decay
+  }
+  midiIndicator.setLevel(midiActivityIndicatorLevel);
 
   // Tuner Check: Ensure text is white
   tunerToggle.setColour(juce::ToggleButton::textColourId, juce::Colours::white);

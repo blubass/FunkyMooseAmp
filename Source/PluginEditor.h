@@ -286,6 +286,10 @@ private:
       latencySamples = lat;
       repaint();
     }
+    void setCPU(float cpu) {
+      cpuUsage = cpu;
+      repaint();
+    }
 
     float cpuUsage = 0.0f;
     int latencySamples = 0;
@@ -308,8 +312,35 @@ private:
   void layoutFx(const juce::Rectangle<float> &r);
   void layoutMaster(const juce::Rectangle<float> &r);
   void layoutElchArea(const juce::Rectangle<float> &r);
-
+  juce::File getPresetsFolder();
+  void loadFactoryPresets();
   void openIrChooser();
+
+  struct MidiIndicator : public juce::Component {
+    void setLevel(float v) {
+      level = v;
+      repaint();
+    }
+    void paint(juce::Graphics &g) override {
+      auto r = getLocalBounds().toFloat().reduced(2.0f);
+      g.setColour(juce::Colours::black.withAlpha(0.4f));
+      g.fillRoundedRectangle(r, 2.0f);
+
+      if (level > 0.001f) {
+        // Cyan-Purple MIDI glow
+        juce::Colour midiCol =
+            juce::Colour(0xff00ffff)
+                .interpolatedWith(juce::Colour(0xff9900ff), 0.3f);
+        g.setColour(midiCol.withAlpha(level));
+        g.fillRoundedRectangle(r.reduced(1.0f), 1.5f);
+
+        // Center light highlight
+        g.setColour(juce::Colours::white.withAlpha(level * 0.8f));
+        g.fillRoundedRectangle(r.reduced(2.5f, 3.5f), 1.0f);
+      }
+    }
+    float level = 0.0f;
+  };
 
   void timerCallback() override;
 
@@ -471,7 +502,6 @@ private:
   float smartGateVisual = 0.0f;
   float cpuUsage = 0.0f;
   int latencySamples = 0;
-  juce::ImageComponent overlayComp;
 
   // Cached/pre-rendered textures to reduce paint overhead
   juce::Image cachedPlateTexture;
@@ -489,6 +519,10 @@ private:
 
   // Ensure heavy-to-render textures are prepared (lazy)
   void ensureCachedTextures(int skinIndex);
+
+  juce::ImageComponent overlayComp;
+  MidiIndicator midiIndicator;
+  float midiActivityIndicatorLevel = 0.0f;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(FunkyMooseAudioProcessorEditor)
 };

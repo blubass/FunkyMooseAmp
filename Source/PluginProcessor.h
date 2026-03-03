@@ -62,6 +62,7 @@ public:
     return dspChain.getOutputGain().getOutRms();
   }
   float getCPUUsage() const noexcept { return cpuUsage.load(); }
+  float getMidiActivity() const noexcept { return midiActivity.load(); }
   float getCompGainReductionDb() const noexcept {
     return dspChain.getCompressor().getGainReductionDb();
   }
@@ -103,6 +104,7 @@ public:
   bool lastAutoGainState = false;
 
   std::atomic<float> cpuUsage{0.0f};
+  std::atomic<float> midiActivity{0.0f};
 
   AudioFifo tunerFifo;
   juce::AudioBuffer<float> tunerScratchMono;

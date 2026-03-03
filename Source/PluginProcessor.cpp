@@ -243,8 +243,14 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   juce::ScopedNoDenormals noDenormals;
 
   // MIDI REMOTE CONTROL: Handle incoming CC messages
+  bool hasMidi = false;
   for (const auto metadata : midiMessages) {
     auto msg = metadata.getMessage();
+    if (msg.isController() || msg.isNoteOn() || msg.isNoteOff() ||
+        msg.isProgramChange()) {
+      hasMidi = true;
+    }
+
     if (msg.isController()) {
       const int ccNum = msg.getControllerNumber();
       const float ccVal = (float)msg.getControllerValue() / 127.0f;
@@ -261,6 +267,10 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
           p->setValueNotifyingHost(ccVal);
       }
     }
+  }
+
+  if (hasMidi) {
+    midiActivity.store(1.0f, std::memory_order_relaxed);
   }
 
   const int totalIns = getTotalNumInputChannels();
