@@ -32,8 +32,9 @@ find_package(JUCE CONFIG REQUIRED)
 if (APPLE)
     set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns")
 elseif (WIN32)
-    set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.ico"
-                       ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.ico")
+    # Using PNG as source - JUCE converts this to a Windows Icon automatically during build.
+    # This is more reliable on GitHub Actions than direct .ico referencing.
+    set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/elch_vintage.png")
 else()
     set(FUNKY_ICON_ARG "")
 endif()
