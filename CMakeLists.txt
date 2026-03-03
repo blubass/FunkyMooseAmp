@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.15)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build Universal Binary" FORCE)
 
-project(FUNKY_MOOSE_AMP VERSION 1.0.5 LANGUAGES C CXX)
+project(FUNKY_MOOSE_AMP VERSION 1.0.6 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -43,7 +43,7 @@ endif()
 juce_add_plugin(FUNKY_MOOSE_AMP
     COMPANY_NAME "Funky Moose Audio"
     PRODUCT_NAME "Funky Moose Amp"
-    VERSION "1.0.5"
+    VERSION "1.0.6"
     BUNDLE_ID "at.uwefelchle.funkymooseamp"
 
     PLUGIN_MANUFACTURER_CODE FMSA
