@@ -201,8 +201,8 @@ public:
 
 private:
   static inline float softClipTanh(float x, float k) noexcept {
-    const float a = 0.92f; // Pre-calculated approx for tanh(1.5)
-    return std::tanh(k * x) / a;
+    const float a = std::tanh(k);
+    return std::tanh(k * x) / (a != 0.0f ? a : 1.0f);
   }
 
   void ensureScratch(int needed) {
@@ -247,6 +247,7 @@ private:
   juce::dsp::IIR::Filter<float> preShifterHPF;
 
   // Latency compensation for Dry Signal
+  // NOTE: ensure this size > shifter.getLatency() at all samplerates
   static const int delayLineSize = 4096;
   std::vector<float> dryDelayLine;
   int delayPtr = 0;

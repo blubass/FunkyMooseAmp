@@ -98,7 +98,9 @@ public:
     sagModule.setSagAmount(0.08f);
     sagModule.setReleaseMs(120.0f);
 
-    scratchBuffer.setSize(spec.numChannels, spec.maximumBlockSize);
+    initialDryBuffer.setSize(spec.numChannels, spec.maximumBlockSize);
+    eqOutputBuffer.setSize(spec.numChannels, spec.maximumBlockSize);
+    dcFilter.assign(spec.numChannels, 0.0f);
 
     prepared = true;
   }
@@ -143,8 +145,7 @@ public:
     prePresence.reset();
     deLPF.reset();
     deHarshDip.reset();
-    dcFilter[0] = 0.0f;
-    dcFilter[1] = 0.0f;
+    std::fill(dcFilter.begin(), dcFilter.end(), 0.0f);
     sagModule.reset();
     ampOnSm.setCurrentAndTargetValue(ampOnSm.getTargetValue());
     tubeOnSm.setCurrentAndTargetValue(tubeOnSm.getTargetValue());
@@ -174,13 +175,16 @@ public:
       const int numSamples = (int)block.getNumSamples();
       const int numCh = (int)block.getNumChannels();
 
-      // Ensure scratch buffer is large enough
-      if (scratchBuffer.getNumSamples() < numSamples)
-        scratchBuffer.setSize(numCh, numSamples, false, false, true);
+      // Ensure buffers are large enough
+      if (initialDryBuffer.getNumSamples() < numSamples) {
+        initialDryBuffer.setSize(numCh, numSamples, false, false, true);
+        eqOutputBuffer.setSize(numCh, numSamples, false, false, true);
+      }
 
       // --- CAPTURE TRUE DRY SIGNAL BEFORE ANY PROCESSING ---
       for (int ch = 0; ch < numCh; ++ch)
-        scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
+        initialDryBuffer.copyFrom(ch, 0, block.getChannelPointer(ch),
+                                  numSamples);
 
       // --- MOOSE PREAMP: Transformer Feel ---
       float peak = 0.0f;
@@ -248,14 +252,14 @@ public:
 
       // Apply Slap filter with sample-accurate crossfade
       for (int ch = 0; ch < numCh; ++ch)
-        scratchBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
+        eqOutputBuffer.copyFrom(ch, 0, block.getChannelPointer(ch), numSamples);
 
-      slap.process(ctx); // Block is now wet
+      slap.process(ctx); // block is now wet
 
       for (int i = 0; i < numSamples; ++i) {
         float mix = slapMixSm.getNextValue();
         for (int ch = 0; ch < numCh; ++ch) {
-          float dry = scratchBuffer.getSample(ch, i);
+          float dry = eqOutputBuffer.getSample(ch, i);
           float *wet = block.getChannelPointer(ch);
           wet[i] = dry + (wet[i] - dry) * mix;
         }
@@ -281,7 +285,7 @@ public:
       if (startMix < 0.999f || endMix < 0.999f) {
         for (int ch = 0; ch < numCh; ++ch) {
           float *d = block.getChannelPointer(ch);
-          const float *dry = scratchBuffer.getReadPointer(ch);
+          const float *dry = initialDryBuffer.getReadPointer(ch);
           for (int i = 0; i < numSamples; ++i) {
             float progress = (float)i / (float)numSamples;
             float mix = startMix + (endMix - startMix) * progress;
@@ -358,7 +362,7 @@ private:
   }
 
   // Moose Preamp State
-  float dcFilter[2] = {0.0f, 0.0f}; // Per-channel DC removal state
+  std::vector<float> dcFilter; // Per-channel DC removal state
   float dcRemovalCoeff = 0.0f;
 
   double sampleRate{44100.0};
@@ -374,7 +378,8 @@ private:
   bool harshDipEnabled = false; // Optional 3.5 kHz dip
   float saturationDrive = 1.8f; // 1.0 bis 2.0 (default 1.8 for more bite)
   float inputGainDb = 0.0f;     // -6 bis +12 dB (default: 0dB)
-  juce::AudioBuffer<float> scratchBuffer;
+  juce::AudioBuffer<float> initialDryBuffer;
+  juce::AudioBuffer<float> eqOutputBuffer;
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGainSm{
       1.0f};
   juce::SmoothedValue<float> ampOnSm;

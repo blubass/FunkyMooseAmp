@@ -70,19 +70,20 @@ public:
     juce::dsp::AudioBlock<float> mainBlock = buffer;
     auto osBlock = mojoOS->processSamplesUp(mainBlock);
 
-    float d01 = mojoDrive01.getNextValue();
-    if (d01 > 0.001f) {
-      size_t numSamples = osBlock.getNumSamples();
-      size_t numCh = osBlock.getNumChannels();
+    const size_t numSamples = osBlock.getNumSamples();
+    const size_t numCh = osBlock.getNumChannels();
 
-      for (size_t ch = 0; ch < numCh; ++ch) {
-        float *x = osBlock.getChannelPointer(ch);
-        auto &lpF = lpCrossover[ch < 2 ? ch : 0];
-        auto &hpF = hpCrossover[ch < 2 ? ch : 0];
-        auto &preF = clankPeak[ch < 2 ? ch : 0];
-        auto &postF = fizzTamer[ch < 2 ? ch : 0];
+    for (size_t n = 0; n < numSamples; ++n) {
+      const float currentDrive = mojoDrive01.getNextValue();
 
-        for (size_t n = 0; n < numSamples; ++n) {
+      if (currentDrive > 0.001f) {
+        for (size_t ch = 0; ch < numCh; ++ch) {
+          float *x = osBlock.getChannelPointer(ch);
+          auto &lpF = lpCrossover[ch < 2 ? ch : 0];
+          auto &hpF = hpCrossover[ch < 2 ? ch : 0];
+          auto &preF = clankPeak[ch < 2 ? ch : 0];
+          auto &postF = fizzTamer[ch < 2 ? ch : 0];
+
           float sample = x[n];
           if (!std::isfinite(sample))
             sample = 0.0f;
@@ -94,15 +95,15 @@ public:
           high = preF.processSample(0, high);
 
           // Shaper loop (simplified for stability)
-          const float driveExp = 1.0f + (5.0f * d01);
+          const float driveExp = 1.0f + (5.0f * currentDrive);
           float hb = high * driveExp;
 
-          const float bias = 0.02f * d01;
+          const float bias = 0.02f * currentDrive;
           float shaper = std::atan(hb + bias) - std::atan(bias);
           if (!std::isfinite(shaper))
             shaper = 0.0f;
 
-          shaper *= (1.0f + (0.3f * d01));
+          shaper *= (1.0f + (0.3f * currentDrive));
           high = postF.processSample(0, shaper);
 
           // Blend with gain compensation (prevent volume jump)
