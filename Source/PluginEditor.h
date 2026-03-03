@@ -267,23 +267,21 @@ private:
       g.setColour(cpuCol.withAlpha(0.4f));
       g.drawRoundedRectangle(area.reduced(0.5f), 4.0f, 1.2f);
 
-      // 4. Text (Larger & Bolder for Tech Look)
-      g.setFont(juce::Font(15.0f, juce::Font::bold));
-      g.setColour(cpuCol.withAlpha(0.4f * pulse));
+      // 4. Text (with subtle glow)
+      g.setFont(juce::FontOptions(13.0f, juce::Font::bold));
+      g.setColour(cpuCol.withAlpha(0.3f * pulse));
 
-      juce::String text = "CPU: " + juce::String(cpuUsage * 100.0f, 1) +
-                          "%  LAT: " + juce::String(latencySamples);
+      juce::String text = "CPU: " + juce::String(cpuUsage * 100.0f, 1) + "%";
 
-      g.drawText(text, area.translated(1.5f, 1.8f),
+      g.drawText(text, area.translated(1.0f, 1.0f),
                  juce::Justification::centred);
 
-      g.setColour(juce::Colours::white.withAlpha(0.95f));
+      g.setColour(juce::Colours::white.withAlpha(0.9f));
       g.drawText(text, area, juce::Justification::centred);
     }
 
-    void update(float cpu, int lat) {
+    void update(float cpu) {
       cpuUsage = cpu;
-      latencySamples = lat;
       repaint();
     }
     void setCPU(float cpu) {
@@ -292,7 +290,6 @@ private:
     }
 
     float cpuUsage = 0.0f;
-    int latencySamples = 0;
   };
 
   struct ContentCanvas : public juce::Component {
@@ -322,21 +319,53 @@ private:
       repaint();
     }
     void paint(juce::Graphics &g) override {
-      auto r = getLocalBounds().toFloat().reduced(2.0f);
-      g.setColour(juce::Colours::black.withAlpha(0.4f));
-      g.fillRoundedRectangle(r, 2.0f);
+      auto area = getLocalBounds().toFloat();
+
+      // Let's create a bounding box for the LED at the bottom half of the
+      // component
+      float ledW = 22.0f;
+      float ledH = 14.0f;
+      auto ledR =
+          juce::Rectangle<float>((area.getWidth() - ledW) * 0.5f,
+                                 area.getHeight() - ledH - 4.0f, ledW, ledH);
+
+      // 1. Label (MIDI) on top
+      g.setFont(juce::Font(10.0f, juce::Font::bold));
+      g.setColour(juce::Colours::white.withAlpha(0.6f));
+      g.drawText("MIDI", area.withHeight(12).translated(0, 4),
+                 juce::Justification::centred, false);
+
+      // 2. Base/Frame for LED
+      g.setColour(juce::Colours::black.withAlpha(0.8f)); // Dark background
+      g.fillRoundedRectangle(ledR, 3.0f);
+
+      // Frame (Rahmen)
+      g.setColour(juce::Colours::white.withAlpha(0.2f));
+      g.drawRoundedRectangle(ledR, 3.0f, 1.2f);
+
+      // Inner shadow/emboss
+      g.setColour(juce::Colours::black.withAlpha(0.6f));
+      g.drawRoundedRectangle(ledR.reduced(1.0f), 2.0f, 1.0f);
+
+      // 3. LED Colors (Darker green: 0xff00bb22)
+      juce::Colour baseGreen = juce::Colour(0xff00bb22);
 
       if (level > 0.001f) {
-        // Cyan-Purple MIDI glow
-        juce::Colour midiCol =
-            juce::Colour(0xff00ffff)
-                .interpolatedWith(juce::Colour(0xff9900ff), 0.3f);
-        g.setColour(midiCol.withAlpha(level));
-        g.fillRoundedRectangle(r.reduced(1.0f), 1.5f);
+        // Main Glow
+        g.setColour(baseGreen.withAlpha(level));
+        g.fillRoundedRectangle(ledR.reduced(1.5f), 2.0f);
 
-        // Center light highlight
-        g.setColour(juce::Colours::white.withAlpha(level * 0.8f));
-        g.fillRoundedRectangle(r.reduced(2.5f, 3.5f), 1.0f);
+        // Licht-Einschuss (Bright center) = HIGHLIGHT
+        g.setColour(juce::Colour(0xffddffdd).withAlpha(level * 0.95f));
+        g.fillRoundedRectangle(ledR.reduced(4.0f, 3.0f), 1.0f);
+
+        // Outer Glow
+        g.setColour(juce::Colours::lime.withAlpha(level * 0.5f));
+        g.drawRoundedRectangle(ledR.expanded(1.5f * level), 4.0f, 2.0f);
+      } else {
+        // Off State - just very dark green
+        g.setColour(baseGreen.withAlpha(0.15f));
+        g.fillRoundedRectangle(ledR.reduced(1.5f), 2.0f);
       }
     }
     float level = 0.0f;

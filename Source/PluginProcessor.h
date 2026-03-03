@@ -105,6 +105,8 @@ public:
 
   std::atomic<float> cpuUsage{0.0f};
   std::atomic<float> midiActivity{0.0f};
+  std::atomic<int> lastMidiType{0}; // 1: Note, 2: CC
+  std::atomic<int> lastMidiNumber{-1};
 
   AudioFifo tunerFifo;
   juce::AudioBuffer<float> tunerScratchMono;

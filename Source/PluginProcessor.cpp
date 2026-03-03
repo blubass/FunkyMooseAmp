@@ -249,23 +249,82 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     if (msg.isController() || msg.isNoteOn() || msg.isNoteOff() ||
         msg.isProgramChange()) {
       hasMidi = true;
+      if (msg.isNoteOn() || msg.isNoteOff()) {
+        lastMidiType.store(1);
+        lastMidiNumber.store(msg.getNoteNumber());
+      } else if (msg.isController()) {
+        lastMidiType.store(2);
+        lastMidiNumber.store(msg.getControllerNumber());
+      }
     }
 
     if (msg.isController()) {
       const int ccNum = msg.getControllerNumber();
       const float ccVal = (float)msg.getControllerValue() / 127.0f;
 
-      // EXAMPLE MAPPINGS (Midi Learnable)
-      // CC 1: Envelope Range
-      if (ccNum == 1) {
+      // AKAI MPK MINI MAPPING (User Config)
+      // K1-K8: CC 2-9
+      if (ccNum == 2) { // K1: Gain
+        if (auto *p = apvts.getParameter("ampGain"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 3) { // K2: Bass
+        if (auto *p = apvts.getParameter("ampBass"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 4) { // K3: Mid
+        if (auto *p = apvts.getParameter("ampMid"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 5) { // K4: Treble
+        if (auto *p = apvts.getParameter("ampTreble"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 6) { // K5: Amp Volume
+        if (auto *p = apvts.getParameter("ampVolume"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 7) { // K6: Octave Mix
+        if (auto *p = apvts.getParameter("octMix"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 8) { // K7: Envelope Range
         if (auto *p = apvts.getParameter("envRange"))
           p->setValueNotifyingHost(ccVal);
-      }
-      // CC 74: Phaser Mix
-      else if (ccNum == 74) {
+      } else if (ccNum == 9) { // K8: Phaser Mix
         if (auto *p = apvts.getParameter("phMix"))
           p->setValueNotifyingHost(ccVal);
       }
+      // LEGACY / DAW MAPPING
+      else if (ccNum == 1) { // Modwheel
+        if (auto *p = apvts.getParameter("envRange"))
+          p->setValueNotifyingHost(ccVal);
+      } else if (ccNum == 74) { // Standard Filter Cutoff
+        if (auto *p = apvts.getParameter("phMix"))
+          p->setValueNotifyingHost(ccVal);
+      }
+    } else if (msg.isNoteOn()) {
+      const int noteNum = msg.getNoteNumber();
+
+      // AKAI MPK MINI PAD MAPPING (Toggles)
+      // Top Row (44-47), Bottom Row (48-51)
+      auto toggleParam = [&](const juce::String &paramID) {
+        if (auto *p = apvts.getParameter(paramID)) {
+          float currentVal = p->getValue();
+          p->setValueNotifyingHost(currentVal > 0.5f ? 0.0f : 1.0f);
+        }
+      };
+
+      if (noteNum == 44)
+        toggleParam("ampOn");
+      else if (noteNum == 45)
+        toggleParam("octOn");
+      else if (noteNum == 46)
+        toggleParam("envOn");
+      else if (noteNum == 47)
+        toggleParam("phaserOn");
+      else if (noteNum == 48)
+        toggleParam("chorusOn");
+      else if (noteNum == 49)
+        toggleParam("compOn");
+      else if (noteNum == 50)
+        toggleParam("cabType"); // Cycle or toggle cab
+      else if (noteNum == 51)
+        toggleParam("bypass");
     }
   }
 
@@ -308,21 +367,54 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   if (bufferChannels == 0 || numSamples == 0)
     return;
 
-  // echte Input-Channels, die im Buffer wirklich vorhanden sind
-  const int inCh = juce::jmin(totalIns, bufferChannels);
+  // 1. Mono-to-Stereo and Standalone Summing
+  // We want to ensure that no matter what, we have a signal in both L and R if
+  // possible.
+  if (wrapperType == juce::AudioProcessor::wrapperType_Standalone) {
+    if (totalIns >= 1 && bufferChannels >= 1) {
+      // Standalone Failsafe: Scan ALL reported hardware inputs.
+      // If we find signal on ANY channel (like channel 3 or 4), sum it to our
+      // main pair.
+      bool foundAnySignal = false;
+      for (int ch = 0; ch < totalIns; ++ch) {
+        if (ch < bufferChannels &&
+            buffer.getMagnitude(ch, 0, numSamples) > 0.0001f) {
+          foundAnySignal = true;
+          if (ch > 1 && bufferChannels >= 2) {
+            // If signal is on a higher channel, add it to L/R
+            buffer.addFrom(0, 0, buffer, ch, 0, numSamples, 0.5f);
+            buffer.addFrom(1, 0, buffer, ch, 0, numSamples, 0.5f);
+          }
+        }
+      }
 
-  // 1) alles löschen, was kein echter Input ist (verhindert Ghosts rechts)
-  for (int ch = inCh; ch < bufferChannels; ++ch)
+      float lMag = buffer.getMagnitude(0, 0, numSamples);
+      float rMag =
+          (bufferChannels > 1) ? buffer.getMagnitude(1, 0, numSamples) : 0.0f;
+
+      // If we only have signal on one side, copy it to the other
+      if (lMag < 0.001f && rMag > 0.001f && bufferChannels >= 2) {
+        buffer.copyFrom(0, 0, buffer, 1, 0, numSamples);
+      } else if (rMag < 0.001f && lMag > 0.001f && bufferChannels >= 2) {
+        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+      }
+      // If we only have one input channel total, copy it to the second buffer
+      // channel
+      else if (totalIns == 1 && bufferChannels >= 2 && lMag > 0.001f) {
+        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+      }
+    }
+  } else {
+    // Normal Plugin Behavior (VST3/AU)
+    if (totalIns == 1 && bufferChannels >= 2) {
+      buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+    }
+  }
+
+  // 2. Clear ONLY truly unused channels
+  for (int ch = std::max(totalIns, 2); ch < bufferChannels; ++ch) {
     buffer.clear(ch, 0, numSamples);
-
-  // 2) Standalone: erzwinge Mono-Policy (R = L), damit offene Inputs keinen
-  // Ärger machen
-  const bool forceMono =
-      (wrapperType == juce::AudioProcessor::wrapperType_Standalone) &&
-      (forceMonoInputParam && forceMonoInputParam->load() > 0.5f);
-
-  if (forceMono && bufferChannels >= 2)
-    buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+  }
 
   const bool tunerOn = (apvts.getRawParameterValue("tunerOn")->load() > 0.5f);
   tunerIsOn.store(tunerOn, std::memory_order_relaxed);
@@ -505,7 +597,9 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     const auto endTime = juce::Time::getHighResolutionTicks();
     const double elapsed =
         juce::Time::highResolutionTicksToSeconds(endTime - startTime);
-    const double totalAvailable = buffer.getNumSamples() / getSampleRate();
+    const double totalAvailable =
+        buffer.getNumSamples() /
+        (getSampleRate() > 0 ? getSampleRate() : 44100.0);
 
     if (totalAvailable > 0) {
       float usage = (float)(elapsed / totalAvailable);

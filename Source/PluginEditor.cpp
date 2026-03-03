@@ -2048,8 +2048,8 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   toggleTooltips.setBounds(presetSelector.getX() - 125, (int)(topY - 3.0f), 120,
                            (int)boxH);
 
-  // Stats HUD (Left of Values)
-  statsHUD.setBounds(toggleTooltips.getX() - 200, (int)(topY - 3.0f), 190,
+  // Stats HUD (Left of Tooltips) - Much wider ("longer") and nudged right
+  statsHUD.setBounds(toggleTooltips.getX() - 185, (int)(topY - 3.0f), 175,
                      (int)boxH);
 
   // Mono Toggle (Left of CPU Stats)
@@ -2057,8 +2057,8 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
                             (int)boxH);
 
   // MIDI Indicator (Left of Mono Toggle)
-  midiIndicator.setBounds(monoInputButton.getX() - 36, (int)(topY + 5.0f), 28,
-                          20);
+  midiIndicator.setBounds(monoInputButton.getX() - 36, (int)(topY - 3.0f), 32,
+                          (int)boxH);
 
   // Ensure visibility
   presetSelector.toFront(false);
@@ -2066,7 +2066,8 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   openFolderButton.toFront(false);
   toggleTooltips.toFront(false);
   statsHUD.toFront(false);
-  monoInputButton.toFront(false); // MUST be in front of the overlayComp
+  midiIndicator.toFront(false); // MUST be in front of the overlayComp
+  monoInputButton.toFront(false);
 
   // LOGO
   // g.drawImageWithin(logo... handled in paintContent)
@@ -2527,8 +2528,8 @@ void FunkyMooseAudioProcessorEditor::timerCallback() {
   elch.setMooseState(inRms, outRms, grDb, punchOn);
 
   // Stats Update
-  cpuUsage = processor.getCPUUsage();
-  statsHUD.setCPU(cpuUsage);
+  // Stats Update (CPU only)
+  statsHUD.update(processor.getCPUUsage());
 
   // MIDI Activity Indicator update (polled from processor)
   float pMidi = processor.getMidiActivity();
