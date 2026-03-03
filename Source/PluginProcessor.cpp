@@ -239,8 +239,29 @@ bool FunkyMooseAudioProcessor::isBusesLayoutSupported(
 }
 
 void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
-                                            juce::MidiBuffer &) {
+                                            juce::MidiBuffer &midiMessages) {
   juce::ScopedNoDenormals noDenormals;
+
+  // MIDI REMOTE CONTROL: Handle incoming CC messages
+  for (const auto metadata : midiMessages) {
+    auto msg = metadata.getMessage();
+    if (msg.isController()) {
+      const int ccNum = msg.getControllerNumber();
+      const float ccVal = (float)msg.getControllerValue() / 127.0f;
+
+      // EXAMPLE MAPPINGS (Midi Learnable)
+      // CC 1: Envelope Range
+      if (ccNum == 1) {
+        if (auto *p = apvts.getParameter("envRange"))
+          p->setValueNotifyingHost(ccVal);
+      }
+      // CC 74: Phaser Mix
+      else if (ccNum == 74) {
+        if (auto *p = apvts.getParameter("phMix"))
+          p->setValueNotifyingHost(ccVal);
+      }
+    }
+  }
 
   const int totalIns = getTotalNumInputChannels();
   const int totalOuts = getTotalNumOutputChannels();
