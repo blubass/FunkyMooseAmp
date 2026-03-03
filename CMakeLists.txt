@@ -89,17 +89,13 @@ target_sources(FUNKY_MOOSE_AMP PRIVATE
 
 # ---- BinaryData (Assets) ----
 juce_add_binary_data(FUNKY_MOOSE_AMPData SOURCES
-    Source/Assets/panel_base.png
-    Source/Assets/panel_wear.png
     Source/Assets/metal_tile.png
     Source/Assets/knob_spec.png
     Source/Assets/knob_scratches.png
     Source/Assets/knob_big.png
     Source/Assets/knob_small.png
     Source/Assets/FunkyMoose.icns
-    Source/Assets/elch_new.png
     Source/Assets/elch_vintage.png
-    Source/Assets/Frame.png
     Source/Assets/FrameOverlay.png
 )
 

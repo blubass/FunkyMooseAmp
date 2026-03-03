@@ -62,13 +62,6 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   lookAndFeel.setMetalOverlay(juce::ImageCache::getFromMemory(
       BinaryData::metal_tile_png, BinaryData::metal_tile_pngSize));
 
-  // Elch image (try common names; keeps the project compiling even if the asset
-  // filename changes)
-  if (auto img =
-          loadImageByName({"elch_new.png", "elch.png", "elch_new", "elch"});
-      img.isValid())
-    elch.setElchImage(img);
-
   addAndMakeVisible(content);
   content.setOpaque(true);
   setOpaque(true);
