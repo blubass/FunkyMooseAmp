@@ -103,23 +103,11 @@ public:
       }
     }
 
-    // Output gain + Auto Gain Compensation
+    // Output gain + Auto Gain Compensation is removed because it causes
+    // positive feedback runaway
     float finalDb = outDb;
     if (autoGainEnabled) {
-      const float noiseFloor = 0.001f; // -60dB threshold to stop gain hunting
-      const float inLvl = inRmsSmooth + 0.0001f;
-      const float outLvl = outRmsSmooth / (autoGainComp + 0.0001f) + 0.0001f;
-
-      // Only adjust if enough signal exists (Prevents noise floor crawl)
-      if (inLvl > noiseFloor) {
-        float targetGain = inLvl / (outLvl + 0.0001f);
-        targetGain = juce::jlimit(0.1f, 8.0f, targetGain);
-
-        const float alpha = 0.995f;
-        autoGainComp = autoGainComp * alpha + targetGain * (1.0f - alpha);
-      }
-
-      finalDb += juce::Decibels::gainToDecibels(autoGainComp);
+      // Safe fallback if ever enabled
     }
 
     outGain.setGainDecibels(finalDb);

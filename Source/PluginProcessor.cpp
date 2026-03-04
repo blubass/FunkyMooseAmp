@@ -483,8 +483,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // 2. Input Gain (Drive) + Comp Input
   {
     float compInDb = compInputParam->load();
-    float ampGainDb = ampGainParam->load();
-    dspChain.getInputGain().setGainDecibels(compInDb + ampGainDb);
+    dspChain.getInputGain().setGainDecibels(compInDb);
   }
 
   // 3. Amp / Tone
@@ -503,6 +502,10 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     // Auto-Gain
     amp.setAutoGain(ampAutoGainParam->load() > 0.5f);
+
+    // Amp Gain and Volume
+    amp.setInputGainDb(ampGainParam->load());
+    amp.setVolumeDb(ampVolumeParam->load());
   }
 
   // 4. Compressor

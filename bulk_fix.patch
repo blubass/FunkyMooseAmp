@@ -1,0 +1,165 @@
+--- Source/dsp/AmpToneModule.h
++++ Source/dsp/AmpToneModule.h
+@@ -41,4 +41,5 @@
+     midDbSm.reset(spec.sampleRate, 0.05);
+     trebleDbSm.reset(spec.sampleRate, 0.05);
+     inputGainSm.reset(spec.sampleRate, 0.05);
++    volumeSm.reset(spec.sampleRate, 0.05);
+     ampOnSm.reset(spec.sampleRate, 0.02);   // 20ms fade
+@@ -124,11 +125,14 @@
+     inputGainDb = juce::jlimit(-6.0f, 12.0f, db);
+     inputGainSm.setTargetValue(juce::Decibels::decibelsToGain(inputGainDb));
+   }
++  void setVolumeDb(float db) noexcept {
++    volumeSm.setTargetValue(juce::Decibels::decibelsToGain(db));
++  }
+   void setBassDb(float db) noexcept { bassDbSm.setTargetValue(db); }
+   void setMidDb(float db) noexcept { midDbSm.setTargetValue(db); }
+ 
+@@ -263,7 +267,7 @@
+         }
+       }
+ 
+-      // Auto-Gain Compensation
++      // Auto-Gain Compensation + Volume
+       if (autoGainEnabled) {
+         float eqComp = 0.0f;
+         eqComp -= bassDbSm.getCurrentValue() * 0.15f;
+@@ -271,7 +275,18 @@
+         eqComp -= trebleDbSm.getCurrentValue() * 0.08f;
+         eqComp += slapMixSm.getCurrentValue() * 3.0f;
+ 
+         float compGain = juce::Decibels::decibelsToGain(eqComp);
+-        block.multiplyBy(compGain);
++        for (int i = 0; i < numSamples; ++i) {
++          float g = volumeSm.getNextValue() * compGain;
++          for (int ch = 0; ch < numCh; ++ch) block.getChannelPointer(ch)[i] *= g;
++        }
++      } else {
++        for (int i = 0; i < numSamples; ++i) {
++          float g = volumeSm.getNextValue();
++          for (int ch = 0; ch < numCh; ++ch) block.getChannelPointer(ch)[i] *= g;
++        }
+       }
+ 
+       // Final Crossfade for Amp Bypass
+@@ -293,6 +308,7 @@
+       visualLevel.store(0.0f, std::memory_order_relaxed);
+       ampOnSm.skip(numSamples);
+       tubeOnSm.skip(numSamples);
++      volumeSm.skip(numSamples);
+       // Advance EQ anyway so it doesn't "snap" when turning on
+       bassDbSm.skip(numSamples);
+@@ -377,6 +393,8 @@
+   juce::AudioBuffer<float> eqOutputBuffer;
+   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGainSm{
+       1.0f};
++  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> volumeSm{
++      1.0f};
+   juce::SmoothedValue<float> ampOnSm;
+   juce::SmoothedValue<float> tubeOnSm;
+--- Source/PluginProcessor.cpp
++++ Source/PluginProcessor.cpp
+@@ -483,8 +483,7 @@
+   // 2. Input Gain (Drive) + Comp Input
+   {
+     float compInDb = compInputParam->load();
+-    float ampGainDb = ampGainParam->load();
+-    dspChain.getInputGain().setGainDecibels(compInDb + ampGainDb);
++    dspChain.getInputGain().setGainDecibels(compInDb);
+   }
+ 
+   // 3. Amp / Tone
+@@ -503,6 +502,10 @@
+ 
+     // Auto-Gain
+     amp.setAutoGain(ampAutoGainParam->load() > 0.5f);
++
++    // Amp Gain
++    amp.setInputGainDb(ampGainParam->load());
++    amp.setVolumeDb(ampVolumeParam->load());
+   }
+ 
+   // 4. Compressor
+--- Source/dsp/OutputModule.h
++++ Source/dsp/OutputModule.h
+@@ -104,23 +104,8 @@
+     }
+ 
+     // Output gain + Auto Gain Compensation
+-    float finalDb = outDb;
+-    if (autoGainEnabled) {
+-      const float noiseFloor = 0.001f; // -60dB threshold to stop gain hunting
+-      const float inLvl = inRmsSmooth + 0.0001f;
+-      const float outLvl = outRmsSmooth / (autoGainComp + 0.0001f) + 0.0001f;
+-
+-      // Only adjust if enough signal exists (Prevents noise floor crawl)
+-      if (inLvl > noiseFloor) {
+-        float targetGain = inLvl / (outLvl + 0.0001f);
+-        targetGain = juce::jlimit(0.1f, 8.0f, targetGain);
+-
+-        const float alpha = 0.995f;
+-        autoGainComp = autoGainComp * alpha + targetGain * (1.0f - alpha);
+-      }
+-
+-      finalDb += juce::Decibels::gainToDecibels(autoGainComp);
+-    }
++    // Disabled flawed Auto Gain loop that causes feedback noise
++    float finalDb = outDb;
+ 
+     outGain.setGainDecibels(finalDb);
+     outGain.process(ctx);
+--- Source/dsp/SmartGate.h
++++ Source/dsp/SmartGate.h
+@@ -116,13 +116,8 @@
+     juce::ScopedNoDenormals noDenormals;
+     for (int i = 0; i < numSamples; ++i) {
+       float g = gateGain.getNextValue();
+-      if (g < 0.0001f) {
+-        for (int ch = 0; ch < numChannels; ++ch)
+-          block.getChannelPointer(ch)[i] = 0.0f;
+-      } else {
+-        for (int ch = 0; ch < numChannels; ++ch)
+-          block.getChannelPointer(ch)[i] *= g;
+-      }
++      for (int ch = 0; ch < numChannels; ++ch)
++        block.getChannelPointer(ch)[i] *= g;
+     }
+   }
+ 
+--- Source/dsp/SagModule.h
++++ Source/dsp/SagModule.h
+@@ -52,14 +52,15 @@
+             std::max(samplePeak, std::abs(block.getChannelPointer(ch)[i]));
+       }
+ 
+-      // Smooth global envelope securely per sample
+-      if (samplePeak > globalEnv) {
+-        globalEnv += (samplePeak - globalEnv) * (float)attackCoeff;
++      // Use squared values (RMS) to prevent audio rate ripple on low frequencies
++      float squaredPeak = samplePeak * samplePeak;
++      if (squaredPeak > globalEnv) {
++        globalEnv += (squaredPeak - globalEnv) * (float)attackCoeff;
+       } else {
+-        globalEnv += (samplePeak - globalEnv) * (float)releaseCoeff;
++        globalEnv += (squaredPeak - globalEnv) * (float)releaseCoeff;
+       }
+ 
+-      float gainReduction = 1.0f - (globalEnv * sagAmount);
++      float gainReduction = 1.0f - (std::sqrt(globalEnv) * sagAmount);
+       gainReduction = juce::jlimit(0.85f, 1.0f, gainReduction);
+ 
+       for (size_t ch = 0; ch < numCh; ++ch) {
+--- Source/dsp/FxModule.h
++++ Source/dsp/FxModule.h
+@@ -107,7 +107,8 @@
+           high = postF.processSample(0, shaper);
+ 
+           // Blend with gain compensation (prevent volume jump)
+-          float out = (low * 1.1f) + (high * 0.55f);
++          float wet = (low * 1.1f) + (high * 0.55f);
++          float mix = juce::jlimit(0.0f, 1.0f, currentDrive * 1.5f);
++          float out = sample + (wet - sample) * mix;
+           if (!std::isfinite(out))
+             out = 0.0f;
+           x[n] = out;

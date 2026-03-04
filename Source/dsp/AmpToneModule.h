@@ -41,6 +41,7 @@ public:
     midDbSm.reset(spec.sampleRate, 0.05);
     trebleDbSm.reset(spec.sampleRate, 0.05);
     inputGainSm.reset(spec.sampleRate, 0.05);
+    volumeSm.reset(spec.sampleRate, 0.05);
     ampOnSm.reset(spec.sampleRate, 0.02);   // 20ms fade
     tubeOnSm.reset(spec.sampleRate, 0.02);  // 20ms fade
     slapMixSm.reset(spec.sampleRate, 0.05); // 50ms fade for slap
@@ -123,6 +124,9 @@ public:
     inputGainDb = juce::jlimit(-6.0f, 12.0f, db);
     inputGainSm.setTargetValue(juce::Decibels::decibelsToGain(inputGainDb));
   }
+  void setVolumeDb(float db) noexcept {
+    volumeSm.setTargetValue(juce::Decibels::decibelsToGain(db));
+  }
   void setBassDb(float db) noexcept { bassDbSm.setTargetValue(db); }
   void setMidDb(float db) noexcept { midDbSm.setTargetValue(db); }
   void setTrebleDb(float db) noexcept { trebleDbSm.setTargetValue(db); }
@@ -164,6 +168,9 @@ public:
     midDbSm.skip(numSamples);
     trebleDbSm.skip(numSamples);
     slapMixSm.skip(numSamples);
+    // don't skip volumeSm here because it must be stepped synchronously with
+    // the amp output block don't skip volumeSm here because it must be stepped
+    // synchronously with the amp output block
 
     // Update Coefficients
     updateFilters();
@@ -265,7 +272,7 @@ public:
         }
       }
 
-      // Auto-Gain Compensation
+      // Auto-Gain Compensation + Volume Knob
       if (autoGainEnabled) {
         float eqComp = 0.0f;
         eqComp -= bassDbSm.getCurrentValue() * 0.15f;
@@ -274,7 +281,21 @@ public:
         eqComp += slapMixSm.getCurrentValue() * 3.0f;
 
         float compGain = juce::Decibels::decibelsToGain(eqComp);
-        block.multiplyBy(compGain);
+
+        for (int i = 0; i < numSamples; ++i) {
+          float volGain = volumeSm.getNextValue() * compGain;
+          for (int ch = 0; ch < numCh; ++ch) {
+            block.getChannelPointer(ch)[i] *= volGain;
+          }
+        }
+      } else {
+        // Fast Volume Only
+        for (int i = 0; i < numSamples; ++i) {
+          float volGain = volumeSm.getNextValue();
+          for (int ch = 0; ch < numCh; ++ch) {
+            block.getChannelPointer(ch)[i] *= volGain;
+          }
+        }
       }
 
       // Final Crossfade for Amp Bypass
@@ -297,6 +318,7 @@ public:
       visualLevel.store(0.0f, std::memory_order_relaxed);
       ampOnSm.skip(numSamples);
       tubeOnSm.skip(numSamples);
+      volumeSm.skip(numSamples);
       // Advance EQ anyway so it doesn't "snap" when turning on
       bassDbSm.skip(numSamples);
       midDbSm.skip(numSamples);
@@ -382,6 +404,7 @@ private:
   juce::AudioBuffer<float> eqOutputBuffer;
   juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> inputGainSm{
       1.0f};
+  juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> volumeSm{1.0f};
   juce::SmoothedValue<float> ampOnSm;
   juce::SmoothedValue<float> tubeOnSm;
   juce::SmoothedValue<float> slapMixSm;
