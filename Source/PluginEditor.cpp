@@ -203,6 +203,21 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
     }
   };
 
+  content.addAndMakeVisible(midiLearnBtn);
+  midiLearnBtn.setButtonText("MIDI LRN");
+  midiLearnBtn.setName("tooltipToggle"); // Use same styling as tooltip button
+  midiLearnBtn.onClick = [this] {
+    if (!processor.isMidiLearnActive.load()) {
+      processor.isMidiLearnActive.store(true);
+      midiLearnBtn.setButtonText("TURN KNOB...");
+      // For TextButton text color is usually determined by LookAndFeel, but we
+      // can set the background.
+    } else {
+      processor.isMidiLearnActive.store(false);
+      midiLearnBtn.setButtonText("MIDI LRN");
+    }
+  };
+
   content.addAndMakeVisible(irMixKnob);
 
   autoGainToggle.setButtonText("");
@@ -2044,11 +2059,11 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   presetSelector.setBounds((int)(rightX - 250.0f), (int)(topY - 3.0f), 250,
                            (int)boxH);
 
-  // New: Tooltip Toggle (Left of Preset Selector)
+  // Tooltips Toggle (Left of Preset Selector)
   toggleTooltips.setBounds(presetSelector.getX() - 125, (int)(topY - 3.0f), 120,
                            (int)boxH);
 
-  // Stats HUD (Left of Tooltips) - Much wider ("longer") and nudged right
+  // Stats HUD (Left of Tooltips)
   statsHUD.setBounds(toggleTooltips.getX() - 185, (int)(topY - 3.0f), 175,
                      (int)boxH);
 
@@ -2056,8 +2071,12 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   monoInputButton.setBounds(statsHUD.getX() - 100, (int)(topY - 3.0f), 95,
                             (int)boxH);
 
-  // MIDI Indicator (Left of Mono Toggle)
-  midiIndicator.setBounds(monoInputButton.getX() - 36, (int)(topY - 3.0f), 32,
+  // Midi Learn (Next to MIDI Indicator)
+  midiLearnBtn.setBounds(monoInputButton.getX() - 120, (int)(topY - 3.0f), 110,
+                         (int)boxH);
+
+  // MIDI Indicator (Left of Midi Learn)
+  midiIndicator.setBounds(midiLearnBtn.getX() - 36, (int)(topY - 3.0f), 32,
                           (int)boxH);
 
   // Ensure visibility
@@ -2066,6 +2085,7 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   openFolderButton.toFront(false);
   toggleTooltips.toFront(false);
   statsHUD.toFront(false);
+  midiLearnBtn.toFront(false);
   midiIndicator.toFront(false); // MUST be in front of the overlayComp
   monoInputButton.toFront(false);
 
@@ -2416,6 +2436,18 @@ void FunkyMooseAudioProcessorEditor::openIrChooser() {
 void FunkyMooseAudioProcessorEditor::timerCallback() {
   inVu.setLevel(processor.getInRms());
   outVu.setLevel(processor.getOutRms());
+
+  // MIDI Learn UI Sync
+  bool isLearnActive = processor.isMidiLearnActive.load();
+  bool isWaiting = processor.learningParamIndex.load() >= 0;
+
+  auto currentText = midiLearnBtn.getButtonText();
+
+  if (!isLearnActive && isWaiting && currentText != "WAITING...") {
+    midiLearnBtn.setButtonText("WAITING...");
+  } else if (!isLearnActive && !isWaiting && currentText != "MIDI LRN") {
+    midiLearnBtn.setButtonText("MIDI LRN");
+  }
 
   // Update Compressor GR Meter
   compGr.setLevel(juce::Decibels::decibelsToGain(

@@ -428,6 +428,7 @@ private:
   juce::TextButton presetSelector{"Default"};
   juce::TextButton savePresetButton{"SAVE"};
   juce::TextButton openFolderButton{"FOLD"};
+  juce::TextButton midiLearnBtn{"MIDI LRN"};   // New
   juce::ToggleButton toggleTooltips{"Values"}; // New Toggle
   StatsHUD statsHUD;                           // New Custom HUD
 

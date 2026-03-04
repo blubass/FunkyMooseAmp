@@ -9,7 +9,33 @@ FunkyMooseAudioProcessor::FunkyMooseAudioProcessor()
               .withInput("Input", juce::AudioChannelSet::stereo(), true)
               .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "PARAMS", createParams()) {
+  for (auto *param : getParameters()) {
+    if (auto *p = dynamic_cast<juce::AudioProcessorParameterWithID *>(param)) {
+      apvts.addParameterListener(p->paramID, this);
+    }
+  }
+
+  // Realtime-safe MIDI map init
+  for (auto &v : ccToParamIndex)
+    v.store(-1);
+
+  parameters.clear();
+  parameterIDs.clear();
+  parameters.reserve(this->getParameters().size());
+  parameterIDs.reserve(this->getParameters().size());
+
+  for (auto *p : this->getParameters()) {
+    if (auto *rp = dynamic_cast<juce::RangedAudioParameter *>(p)) {
+      parameters.push_back(rp);
+
+      if (auto *withID = dynamic_cast<juce::AudioProcessorParameterWithID *>(p))
+        parameterIDs.push_back(withID->paramID);
+      else
+        parameterIDs.push_back(p->getName(64));
+    }
+  }
   loadPreset("Default");
+  loadMidiMap();
 }
 
 juce::AudioProcessorEditor *FunkyMooseAudioProcessor::createEditor() {
@@ -45,7 +71,7 @@ FunkyMooseAudioProcessor::createParams() {
       0.0f));
   p.push_back(std::make_unique<APF>(
       "ampVolume", "Volume", juce::NormalisableRange<float>(-24.0f, 6.0f),
-      -1.0f));
+      3.0f));
   p.push_back(std::make_unique<APB>("slap", "Slap 8k", false));
   p.push_back(std::make_unique<APB>("tubeOn", "Tube Saturation", false));
   p.push_back(std::make_unique<APB>("lowCutOn", "Low Cut 40Hz", false));
@@ -114,7 +140,7 @@ FunkyMooseAudioProcessor::createParams() {
   p.push_back(std::make_unique<APB>("masterOn", "Master On", true));
   p.push_back(std::make_unique<APF>(
       "masterOut", "Output", juce::NormalisableRange<float>(-60.0f, 6.0f),
-      -1.0f));
+      0.0f));
   p.push_back(std::make_unique<APC>(
       "cabType", "Cabinet",
       juce::StringArray{"OFF", "4x10", "1x15", "CUSTOM IR"}, 1));
@@ -146,6 +172,8 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   mState.spec.numChannels =
       (juce::uint32)juce::jmax(1, getTotalNumOutputChannels());
 
+  // Pre-allocate tuner scratch buffer (no allocations in audio thread)
+  tunerScratchMono.setSize(1, samplesPerBlock, false, false, true);
   // Cache Parameters for high-performance retrieval
   bypassParam = apvts.getRawParameterValue("bypass");
   autoGateParam = apvts.getRawParameterValue("autoGate");
@@ -263,6 +291,36 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     if (msg.isController()) {
       const int ccNum = msg.getControllerNumber();
       const float ccVal = (float)msg.getControllerValue() / 127.0f;
+
+      // CUSTOM MIDI LEARN MAPPING (realtime-safe)
+      bool handledByCustomMap = false;
+
+      // If learn is armed and we already captured which parameter to learn,
+      // the next received CC will bind to it.
+      if (const int learnIdx = learningParamIndex.load(); learnIdx >= 0) {
+        if (ccNum >= 0 && ccNum < 128) {
+          ccToParamIndex[(size_t)ccNum].store(learnIdx);
+          learnedCC.store(ccNum);
+          midiMapDirty.store(true);
+          triggerAsyncUpdate(); // save on message thread
+        }
+
+        learningParamIndex.store(-1);
+      }
+
+      const int mappedIndex = (ccNum >= 0 && ccNum < 128)
+                                  ? ccToParamIndex[(size_t)ccNum].load()
+                                  : -1;
+
+      if (mappedIndex >= 0 && mappedIndex < (int)parameters.size()) {
+        if (auto *p = parameters[(size_t)mappedIndex])
+          p->setValueNotifyingHost(ccVal);
+
+        handledByCustomMap = true;
+      }
+
+      if (handledByCustomMap)
+        continue;
 
       // AKAI MPK MINI MAPPING (User Config)
       // K1-K8: CC 2-9
@@ -424,7 +482,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Tuner Tap (Pre-Gate/Amp)
   if (tunerOn) {
     const int n = buffer.getNumSamples();
-    tunerScratchMono.setSize(1, n, false, false, true);
+    jassert(n <= tunerScratchMono.getNumSamples());
     auto *m = tunerScratchMono.getWritePointer(0);
     auto *L = buffer.getReadPointer(0);
     auto *R =
@@ -1561,3 +1619,92 @@ void FunkyMooseAudioProcessor::savePreset(const juce::String &presetName) {
 }
 
 void FunkyMooseAudioProcessor::loadFactoryPresets() {}
+
+//==============================================================================
+// MIDI LEARN Custom Implementation
+//==============================================================================
+
+int FunkyMooseAudioProcessor::findParameterIndexByID(
+    const juce::String &parameterID) const {
+  // Linear search is fine (small parameter count) and allocation-free.
+  for (size_t i = 0; i < parameterIDs.size(); ++i)
+    if (parameterIDs[i] == parameterID)
+      return (int)i;
+
+  return -1;
+}
+
+void FunkyMooseAudioProcessor::handleAsyncUpdate() {
+  if (!midiMapDirty.exchange(false))
+    return;
+
+  saveMidiMap();
+}
+
+void FunkyMooseAudioProcessor::parameterChanged(const juce::String &parameterID,
+                                                float newValue) {
+  juce::ignoreUnused(newValue);
+
+  // MIDI Learn: user arms learn in UI, then moves a parameter.
+  // This callback must be allocation-free and lock-free.
+  if (isMidiLearnActive.exchange(false)) {
+    const int idx = findParameterIndexByID(parameterID);
+    learningParamIndex.store(idx);
+  }
+}
+
+void FunkyMooseAudioProcessor::clearMidiMapping(const juce::String &paramID) {
+  const int idx = findParameterIndexByID(paramID);
+  if (idx < 0)
+    return;
+
+  for (auto &v : ccToParamIndex)
+    if (v.load() == idx)
+      v.store(-1);
+
+  midiMapDirty.store(true);
+  triggerAsyncUpdate();
+}
+
+void FunkyMooseAudioProcessor::saveMidiMap() {
+  auto folder = getPresetsFolder().getParentDirectory();
+  auto mapFile = folder.getChildFile("midi_map.xml");
+
+  juce::XmlElement xml("MidiMap");
+
+  for (int cc = 0; cc < 128; ++cc) {
+    const int idx = ccToParamIndex[(size_t)cc].load();
+    if (idx >= 0 && idx < (int)parameterIDs.size()) {
+      auto *mapChild = xml.createNewChildElement("Map");
+      mapChild->setAttribute("cc", cc);
+      mapChild->setAttribute("param", parameterIDs[(size_t)idx]);
+    }
+  }
+
+  xml.writeTo(mapFile);
+}
+
+void FunkyMooseAudioProcessor::loadMidiMap() {
+  auto folder = getPresetsFolder().getParentDirectory();
+  auto mapFile = folder.getChildFile("midi_map.xml");
+  if (!mapFile.existsAsFile())
+    return;
+
+  for (auto &v : ccToParamIndex)
+    v.store(-1);
+
+  if (auto xml = juce::parseXML(mapFile)) {
+    if (xml->hasTagName("MidiMap")) {
+      for (auto *child : xml->getChildIterator()) {
+        if (child->hasTagName("Map")) {
+          const int cc = child->getIntAttribute("cc", -1);
+          const juce::String param = child->getStringAttribute("param");
+          const int idx = findParameterIndexByID(param);
+
+          if (cc >= 0 && cc < 128 && idx >= 0)
+            ccToParamIndex[(size_t)cc].store(idx);
+        }
+      }
+    }
+  }
+}
