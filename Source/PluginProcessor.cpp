@@ -111,6 +111,7 @@ FunkyMooseAudioProcessor::createParams() {
   p.push_back(std::make_unique<APB>("fxParallel", "Parallel FX", false));
 
   // MASTER
+  p.push_back(std::make_unique<APB>("masterOn", "Master On", true));
   p.push_back(std::make_unique<APF>(
       "masterOut", "Output", juce::NormalisableRange<float>(-60.0f, 6.0f),
       -1.0f));
@@ -165,6 +166,7 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   ampGainParam = apvts.getRawParameterValue("ampGain");
   ampAutoGainParam = apvts.getRawParameterValue("ampAutoGain");
   lowCutOnParam = apvts.getRawParameterValue("lowCutOn");
+  masterOnParam = apvts.getRawParameterValue("masterOn");
   compOnParam = apvts.getRawParameterValue("compOn");
   compInputParam = apvts.getRawParameterValue("compInput");
   compThreshParam = apvts.getRawParameterValue("compThresh");
@@ -444,8 +446,9 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     prepareToPlay(getSampleRate() > 0.0 ? getSampleRate() : 44100.0,
                   buffer.getNumSamples());
 
-  // HARD DSP BYPASS
-  if (bypassParam->load() > 0.5f) {
+  // HARD DSP BYPASS OR MASTER OFF
+  if (bypassParam->load() > 0.5f ||
+      (masterOnParam != nullptr && masterOnParam->load() < 0.5f)) {
     return;
   }
 
@@ -710,6 +713,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 1.0f);
     setVal("envRange", 62.45429992675781f);
     setVal("masterOut", 2.52780818939209f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 17.35837554931641f);
     setVal("oct2", 61.60457611083984f);
     setVal("octMix", 5.146412372589111f);
@@ -764,6 +768,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", -10.0f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 70.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 23.38652420043945f);
@@ -818,6 +823,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", -6.999999523162842f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -872,6 +878,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", -18.36061859130859f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -926,6 +933,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 3.829372644424438f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -980,6 +988,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 2.999999046325684f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1034,6 +1043,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 0.4217716455459595f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1088,6 +1098,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", -1.000001192092896f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1142,6 +1153,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", -0.01274406909942627f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1196,6 +1208,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 1.99999988079071f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1250,6 +1263,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 2.741891384124756f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 0.0f);
     setVal("octMix", 33.1697998046875f);
@@ -1304,6 +1318,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 1.0f);
     setVal("envRange", 56.9786491394043f);
     setVal("masterOut", -1.364867091178894f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 42.58097839355469f);
     setVal("oct2", 38.40481948852539f);
     setVal("octMix", 26.33305740356445f);
@@ -1358,6 +1373,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 2.741891384124756f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 0.0f);
     setVal("oct2", 82.36775970458984f);
     setVal("octMix", 18.17819976806641f);
@@ -1412,6 +1428,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", -1.000001192092896f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1428,7 +1445,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("cabType", 1.0f);
     setVal("masterMix", 100.0f);
     setVal("bypass", 0.0f);
-    setVal("autoGain", 0.0f);
+    setVal("autoGain", 1.0f);
     setVal("fxParallel", 1.0f);
     setVal("monoMaker", 400.0f);
     setVal("lowCutOn", 1.0f);
@@ -1466,6 +1483,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("envOn", 0.0f);
     setVal("envRange", 0.0f);
     setVal("masterOut", 0.0f);
+    setVal("masterOn", 1.0f);
     setVal("oct1", 40.0f);
     setVal("oct2", 40.0f);
     setVal("octMix", 0.0f);
@@ -1482,7 +1500,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("cabType", 1.0f); // 4x10 ON by default
     setVal("masterMix", 100.0f);
     setVal("bypass", 0.0f);
-    setVal("autoGain", 0.0f); // DISABLED by default to prevent "silent traps"
+    setVal("autoGain", 1.0f);
     setVal("fxParallel", 0.0f);
     setVal("monoMaker", 20.0f);
     setVal("lowCutOn", 0.0f);

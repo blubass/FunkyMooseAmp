@@ -157,6 +157,7 @@ public:
   std::atomic<float> *cabTypeParam = nullptr;
   std::atomic<float> *irMixParam = nullptr;
   std::atomic<float> *masterOutParam = nullptr;
+  std::atomic<float> *masterOnParam = nullptr;
   std::atomic<float> *monoMakerParam = nullptr;
   std::atomic<float> *monoMakerOnParam = nullptr;
   std::atomic<float> *autoGainParam = nullptr;

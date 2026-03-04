@@ -269,7 +269,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   // PRESETS Header (Must be Added to Content!)
   content.addAndMakeVisible(presetSelector);
-  presetSelector.setButtonText("Presets...");
+  presetSelector.setButtonText("Default");
 
   content.addAndMakeVisible(savePresetButton);
   content.addAndMakeVisible(openFolderButton);

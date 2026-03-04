@@ -331,7 +331,7 @@ private:
 
       // 1. Label (MIDI) on top
       g.setFont(juce::Font(10.0f, juce::Font::bold));
-      g.setColour(juce::Colours::white.withAlpha(0.6f));
+      g.setColour(juce::Colour(0xff44ff44)); // Bright stand-out green
       g.drawText("MIDI", area.withHeight(12).translated(0, 4),
                  juce::Justification::centred, false);
 
@@ -425,7 +425,7 @@ private:
   juce::ToggleButton masterOn;
 
   // Preset & Skin UI
-  juce::TextButton presetSelector{"Presets..."};
+  juce::TextButton presetSelector{"Default"};
   juce::TextButton savePresetButton{"SAVE"};
   juce::TextButton openFolderButton{"FOLD"};
   juce::ToggleButton toggleTooltips{"Values"}; // New Toggle

@@ -548,7 +548,10 @@ void FunkyMooseLookAndFeel::drawButtonText(juce::Graphics &g,
   auto area = button.getLocalBounds().toFloat();
   const bool hover = shouldDrawButtonAsHighlighted;
   const bool down = shouldDrawButtonAsDown;
-  g.setFont(juce::Font(14.0f, juce::Font::bold));
+
+  float fontSize = 20.0f; // Increased font size for TextButton
+  g.setFont(juce::Font(fontSize, juce::Font::bold));
+
   g.setColour(juce::Colours::black.withAlpha(0.8f));
   g.drawFittedText(button.getButtonText(), area.translated(1, 1).toNearestInt(),
                    juce::Justification::centred, 1);
@@ -570,7 +573,7 @@ void FunkyMooseLookAndFeel::drawBubble(juce::Graphics &g,
 
 // --- POPUP MENU STYLING ---
 juce::Font FunkyMooseLookAndFeel::getPopupMenuFont() {
-  return juce::Font(22.0f, juce::Font::bold); // Large & Bold for Presets
+  return juce::Font(96.0f, juce::Font::bold); // Giant text for Presets
 }
 
 void FunkyMooseLookAndFeel::drawPopupMenuItem(
