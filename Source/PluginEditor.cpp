@@ -1200,9 +1200,9 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
 
     juce::String fullText = "FUNKY MOOSE  BASS STRATEGY";
     juce::Font mainFont(
-        juce::FontOptions("CartoonVibes", 38.0f, juce::Font::plain));
+        juce::FontOptions("CartoonVibes", 41.0f, juce::Font::plain));
     juce::Font subFont(
-        juce::FontOptions("CartoonVibes", 30.0f, juce::Font::plain));
+        juce::FontOptions("CartoonVibes", 33.0f, juce::Font::plain));
     subFont.setHorizontalScale(0.94f); // minimal thinner
 
     float extraSpacing = 2.0f; // Tighter spacing
