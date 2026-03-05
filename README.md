@@ -1,6 +1,8 @@
 # Funky Moose Amp
 ![Funky Moose Amp](https://raw.githubusercontent.com/blubass/FunkyMooseAmp/main/Plugin%20Screenshot.png)
 
+*(German version see [README_de.md](README_de.md))*
+
 A highly versatile, state-of-the-art Bass Amplifier Plugin, specifically designed to bring the funk! Built with modern JUCE frameworks and featuring a dynamic, interactive UI.
 
 ## Features Overview
