@@ -115,27 +115,27 @@ public:
 
     auto &buffer = ctx.getOutputBlock();
 
-    // Safety clip
-    const float thr = juce::jlimit(0.2f, 0.9995f, safetyClipThreshold);
     const int n = (int)buffer.getNumSamples();
     const int chs = (int)buffer.getNumChannels();
-
     float inSum = 0.0f;
     float outSum = 0.0f;
 
+    // --- GLOBAL OUTPUT SOFT CLIPPER ("Dicker Bass" Fix) ---
+    // This adds subtle harmonic saturation even at low levels and rounds off
+    // transients.
     for (int ch = 0; ch < chs; ++ch) {
       auto *x = buffer.getChannelPointer(ch);
       for (int i = 0; i < n; ++i) {
         const float vPre = x[i];
         inSum += vPre * vPre;
-        float v = vPre;
-        if (std::abs(v) > thr) {
-          const float s = (v >= 0.0f) ? 1.0f : -1.0f;
-          const float t = (std::abs(v) - thr) / (1.0f - thr + 1.0e-6f);
-          v = s * (thr +
-                   (1.0f - thr) *
-                       std::tanh(t)); // Fixed: Removed * 2.0f for C1 continuity
-        }
+
+        // Subtle Soft Clipping: sample / (1.0 + abs(sample))
+        // We add a tiny 'drive' to push it into the saturation zone for that
+        // 'thick' feel
+        float drive = 1.08f;
+        float v = vPre * drive;
+        v = v / (1.0f + std::abs(v));
+
         x[i] = v;
         outSum += v * v;
       }

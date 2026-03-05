@@ -34,6 +34,9 @@ public:
     enableSm.reset(sr, 0.05); // 50ms transition
     enableSm.setCurrentAndTargetValue(compOn ? 1.0f : 0.0f);
 
+    mixSm.reset(sr, 0.08); // 80ms transition for mix
+    mixSm.setCurrentAndTargetValue(1.0f);
+
     prepared = true;
   }
 
@@ -63,7 +66,7 @@ public:
     slope = 1.0f - (1.0f / ratio);
   }
 
-  void setMix(float m) { userMix = juce::jlimit(0.0f, 1.0f, m); }
+  void setMix(float m) { mixSm.setTargetValue(juce::jlimit(0.0f, 1.0f, m)); }
 
   void setAttackMs(float ms) {
     attackMs = juce::jmax(0.5f, ms);
@@ -99,6 +102,7 @@ public:
       grDbMeter.store(0.0f);
       scEnv = 0.0f;
       gr = 1.0f;
+      mixSm.skip(context.getOutputBlock().getNumSamples());
       return;
     }
 
@@ -111,6 +115,7 @@ public:
       grDbMeter.store(0.0f);
       scEnv = 0.0f;
       gr = 1.0f;
+      mixSm.skip(numSamples);
       return;
     }
     if (numSamples <= 0 || numCh <= 0)
@@ -158,7 +163,7 @@ public:
 
       // Apply to all channels
       const float totalGain = gr * makeupLin;
-      const float mix = enableSm.getNextValue() * userMix;
+      const float mix = enableSm.getNextValue() * mixSm.getNextValue();
 
       for (int ch = 0; ch < numCh; ++ch) {
         float *ptr = block.getChannelPointer((size_t)ch);
@@ -250,7 +255,6 @@ private:
   float gcRelease = 0.9999f;
   float scEnv = 0.0f;
   float gr = 1.0f;
-  float userMix = 1.0f;
 
   bool levelMatchEnabled = true;
   float levelMatchGainLin = 1.0f;
@@ -266,4 +270,5 @@ private:
   juce::IIRFilter scHPF;
   std::atomic<float> grDbMeter{0.0f};
   juce::SmoothedValue<float> enableSm;
+  juce::SmoothedValue<float> mixSm;
 };
