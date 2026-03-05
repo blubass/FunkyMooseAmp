@@ -100,6 +100,9 @@ FunkyMooseAudioProcessor::createParams() {
   p.push_back(std::make_unique<APB>("punch", "Punch", false));
   p.push_back(
       std::make_unique<APB>("compAutoMakeup", "Comp Auto Makeup", false));
+  p.push_back(std::make_unique<APF>(
+      "compMix", "Comp Mix", juce::NormalisableRange<float>(0.0f, 100.0f),
+      100.0f));
 
   // FX (1x4 bottom)
   p.push_back(std::make_unique<APB>("octOn", "Octaver On", false));
@@ -202,6 +205,7 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   compRatioParam = apvts.getRawParameterValue("compRatio");
   compAttackParam = apvts.getRawParameterValue("compAttack");
   compReleaseParam = apvts.getRawParameterValue("compRelease");
+  compMixParam = apvts.getRawParameterValue("compMix");
   compAutoMakeupParam = apvts.getRawParameterValue("compAutoMakeup");
   punchParam = apvts.getRawParameterValue("punch");
   phaserOnParam = apvts.getRawParameterValue("phaserOn");
@@ -448,20 +452,23 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         }
       }
 
+      // In Standalone: ALWAYS force right channel = left channel.
+      // This eliminates hardware crosstalk / interference on the right input.
       float lMag = buffer.getMagnitude(0, 0, numSamples);
       float rMag =
           (bufferChannels > 1) ? buffer.getMagnitude(1, 0, numSamples) : 0.0f;
 
-      // If we only have signal on one side, copy it to the other
+      // If no signal on left but right has signal, copy R->L
       if (lMag < 0.001f && rMag > 0.001f && bufferChannels >= 2) {
         buffer.copyFrom(0, 0, buffer, 1, 0, numSamples);
-      } else if (rMag < 0.001f && lMag > 0.001f && bufferChannels >= 2) {
-        buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
       }
-      // If we only have one input channel total, copy it to the second buffer
-      // channel
-      else if (totalIns == 1 && bufferChannels >= 2 && lMag > 0.001f) {
+
+      // ALWAYS copy L->R in Standalone to prevent right-channel crosstalk
+      if (bufferChannels >= 2 &&
+          buffer.getMagnitude(0, 0, numSamples) > 0.0001f) {
         buffer.copyFrom(1, 0, buffer, 0, 0, numSamples);
+      } else if (bufferChannels >= 2) {
+        buffer.clear(1, 0, numSamples); // Clear right if left is silent too
       }
     }
   } else {
@@ -579,6 +586,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     comp.setAttackMs(compAttackParam->load());
     comp.setReleaseMs(compReleaseParam->load());
     comp.setMakeupGainDb(compMakeupParam->load());
+    comp.setMix(compMixParam->load() / 100.0f);
     comp.setAutoMakeup(compAutoMakeupParam->load() > 0.5f);
 
     const bool punch = punchParam->load() > 0.5f;

@@ -573,7 +573,7 @@ void FunkyMooseLookAndFeel::drawBubble(juce::Graphics &g,
 
 // --- POPUP MENU STYLING ---
 juce::Font FunkyMooseLookAndFeel::getPopupMenuFont() {
-  return juce::Font(96.0f, juce::Font::bold); // Giant text for Presets
+  return juce::Font(18.0f, juce::Font::bold); // Normal size instead of 96.0f
 }
 
 void FunkyMooseLookAndFeel::drawPopupMenuItem(
@@ -599,17 +599,38 @@ void FunkyMooseLookAndFeel::drawPopupMenuItem(
     g.drawRoundedRectangle(r.reduced(2.0f), 4.0f, 1.0f);
   }
 
-  // Text Color logic
-  g.setColour(isHighlighted ? juce::Colours::white
-                            : juce::Colours::white.withAlpha(0.75f));
-  if (!isActive)
-    g.setColour(juce::Colours::white.withAlpha(0.2f));
+  // --- ComboBox items (small, e.g. Ratio 4:1 etc.) get yellow text + golden
+  // glow ---
+  bool isComboItem = (r.getHeight() < 30.0f);
 
-  g.setFont(getPopupMenuFont());
-
-  auto textRect = r.reduced(12.0f, 0);
-  g.drawFittedText(text, textRect.toNearestInt(),
-                   juce::Justification::centredLeft, 1);
+  if (isComboItem) {
+    // Golden glow background for ComboBox items
+    if (isHighlighted && isActive) {
+      // Bright gold highlight when hovered
+      for (int i = 3; i >= 1; --i) {
+        g.setColour(juce::Colour(0xfff0e040).withAlpha(0.08f * i));
+        g.fillRoundedRectangle(r.expanded((float)i * 1.5f), 3.0f);
+      }
+      g.setColour(juce::Colour(0xfff0e040).withAlpha(0.35f));
+      g.fillRoundedRectangle(r.reduced(1.0f), 3.0f);
+    }
+    // Yellow text for all Ratio items
+    g.setColour(isHighlighted ? juce::Colours::white
+                              : juce::Colour(0xfff0e040));
+    float fontSize = juce::jlimit(12.0f, 22.0f, r.getHeight() - 4.0f);
+    g.setFont(juce::Font(fontSize, juce::Font::bold));
+    g.drawFittedText(text, r.reduced(8.0f, 0).toNearestInt(),
+                     juce::Justification::centred, 1);
+  } else {
+    // --- Preset items (large) - white text ---
+    g.setColour(isHighlighted ? juce::Colours::white
+                              : juce::Colours::white.withAlpha(0.85f));
+    float fontSize = juce::jlimit(14.0f, 110.0f, r.getHeight() - 4.0f);
+    g.setFont(juce::Font(fontSize, juce::Font::bold));
+    auto textRect = r.reduced(12.0f, 0);
+    g.drawFittedText(text, textRect.toNearestInt(),
+                     juce::Justification::centredLeft, 1);
+  }
 
   if (isTicked) {
     auto tickRect = r.removeFromLeft(24.0f).reduced(6.0f);
@@ -622,7 +643,8 @@ void FunkyMooseLookAndFeel::drawPopupMenuSectionHeader(
     juce::Graphics &g, const juce::Rectangle<int> &area,
     const juce::String &sectionName) {
   g.setColour(juce::Colours::white.withAlpha(0.45f));
-  g.setFont(juce::Font(16.0f, juce::Font::bold | juce::Font::italic));
+  float fontSize = juce::jlimit(12.0f, 32.0f, (float)area.getHeight() * 0.4f);
+  g.setFont(juce::Font(fontSize, juce::Font::bold | juce::Font::italic));
   g.drawFittedText(sectionName, area.reduced(12, 0),
                    juce::Justification::centredLeft, 1);
 
@@ -630,4 +652,33 @@ void FunkyMooseLookAndFeel::drawPopupMenuSectionHeader(
   g.setColour(juce::Colours::white.withAlpha(0.1f));
   g.drawLine((float)area.getX(), (float)area.getBottom() - 1.0f,
              (float)area.getRight(), (float)area.getBottom() - 1.0f, 0.5f);
+}
+
+void FunkyMooseLookAndFeel::drawComboBox(juce::Graphics &g, int width,
+                                         int height, bool isButtonDown,
+                                         int buttonX, int buttonY, int buttonW,
+                                         int buttonH, juce::ComboBox &box) {
+  // Dark background
+  auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height);
+  g.setColour(juce::Colour(0xff121212));
+  g.fillRoundedRectangle(bounds, 4.0f);
+
+  // Golden glow border - outer layers
+  for (int i = 4; i >= 1; --i) {
+    g.setColour(juce::Colour(0xfff0e040).withAlpha(0.04f * i));
+    g.drawRoundedRectangle(bounds.expanded((float)i * 1.2f), 4.0f + i, 1.0f);
+  }
+  // Sharp golden border
+  g.setColour(juce::Colour(0xfff0e040).withAlpha(0.65f));
+  g.drawRoundedRectangle(bounds.reduced(0.5f), 4.0f, 1.2f);
+
+  // Arrow indicator
+  juce::Path arrow;
+  float ax = buttonX + buttonW * 0.5f;
+  float ay = buttonY + buttonH * 0.5f;
+  float as = buttonH * 0.25f;
+  arrow.addTriangle(ax - as, ay - as * 0.5f, ax + as, ay - as * 0.5f, ax,
+                    ay + as * 0.7f);
+  g.setColour(juce::Colour(0xfff0e040).withAlpha(isButtonDown ? 1.0f : 0.75f));
+  g.fillPath(arrow);
 }

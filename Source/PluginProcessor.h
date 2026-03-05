@@ -2,8 +2,8 @@
 #include "JuceIncludes.h"
 #include "dsp/AudioFifo.h"
 #include "dsp/MooseDSPChain.h"
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <memory>
 #include <vector>
 
@@ -55,31 +55,34 @@ public:
   std::atomic<float> rmsLinear{0.0f};
 
   // MIDI Learn (realtime-safe)
-// UI flow stays the same: user enables learn, then moves a parameter -> next CC maps to it.
-std::atomic<bool> isMidiLearnActive{false};
+  // UI flow stays the same: user enables learn, then moves a parameter -> next
+  // CC maps to it.
+  std::atomic<bool> isMidiLearnActive{false};
 
-// Index of the parameter we are currently learning (set in parameterChanged when learn is armed)
-std::atomic<int> learningParamIndex{-1};
+  // Index of the parameter we are currently learning (set in parameterChanged
+  // when learn is armed)
+  std::atomic<int> learningParamIndex{-1};
 
-// Set by audio thread when a CC is captured during learn; consumed on message thread for persistence
-std::atomic<int> learnedCC{-1};
+  // Set by audio thread when a CC is captured during learn; consumed on message
+  // thread for persistence
+  std::atomic<int> learnedCC{-1};
 
-// Marks that mapping changed; triggers AsyncUpdater to save on message thread
-std::atomic<bool> midiMapDirty{false};
+  // Marks that mapping changed; triggers AsyncUpdater to save on message thread
+  std::atomic<bool> midiMapDirty{false};
 
-// O(1) CC->Param mapping: -1 means unmapped (Realtime-Safe)
-std::atomic<int> ccToParamIndex[128];
+  // O(1) CC->Param mapping: -1 means unmapped (Realtime-Safe)
+  std::atomic<int> ccToParamIndex[128];
 
-// Parameter registry (stable for life of processor)
-std::vector<juce::RangedAudioParameter *> parameters;
-std::vector<juce::String> parameterIDs;
+  // Parameter registry (stable for life of processor)
+  std::vector<juce::RangedAudioParameter *> parameters;
+  std::vector<juce::String> parameterIDs;
 
-void clearMidiMapping(const juce::String &paramID);
-void saveMidiMap();
-void loadMidiMap();
+  void clearMidiMapping(const juce::String &paramID);
+  void saveMidiMap();
+  void loadMidiMap();
 
-void parameterChanged(const juce::String &parameterID, float newValue) override;
-
+  void parameterChanged(const juce::String &parameterID,
+                        float newValue) override;
 
   juce::AudioProcessorValueTreeState apvts;
 
@@ -174,6 +177,7 @@ void parameterChanged(const juce::String &parameterID, float newValue) override;
   std::atomic<float> *compRatioParam = nullptr;
   std::atomic<float> *compAttackParam = nullptr;
   std::atomic<float> *compReleaseParam = nullptr;
+  std::atomic<float> *compMixParam = nullptr;
   std::atomic<float> *compAutoMakeupParam = nullptr;
   std::atomic<float> *punchParam = nullptr;
   std::atomic<float> *phaserOnParam = nullptr;

@@ -14,8 +14,9 @@ void ElchComponent::paint(juce::Graphics &g) {
   // --- CALCULATE DYNAMIC VALUES ---
   float bright =
       juce::jlimit(0.15f, 3.0f, inputLevel * 2.6f + eyeAmount * 0.6f);
-  bright = std::max(bright, 0.35f);
+  bright = std::max(bright, 0.55f); // Raised minimum glow floor
   float amt = juce::jlimit(0.0f, 1.0f, inputLevel * 1.8f + eyeAmount * 0.6f);
+  amt = std::max(amt, 0.35f); // Always some amount so sunglass glow is visible
 
   // 2. Draw Elch Image (ABSOLUTE FOREGROUND - NO MASKING)
   if (elchImage.isValid()) {
@@ -73,7 +74,7 @@ void ElchComponent::paint(juce::Graphics &g) {
   }
 
   // --- SUNGLASSES & ANTLERS (Glow Layers) ---
-  if (inputLevel > 0.001f || eyeAmount > 0.001f) {
+  if (inputLevel > 0.001f || eyeAmount > 0.001f || amt > 0.1f) {
     float w = bounds.getWidth();
     float faceY = bounds.getY() + bounds.getHeight() * 0.48f;
     float centerX = bounds.getCentreX();
@@ -92,9 +93,8 @@ void ElchComponent::paint(juce::Graphics &g) {
       // Much larger, softer falloff for the 'Halo' vibe
       float rGlow = r * (3.0f + 1.5f * inputLevel);
 
-      // Tube-light style: Not bright white core, but a warm, glowing source
-      // Boosted intensity to ~55% per user request ("scream louder")
-      float finalAlpha = std::min(0.55f, 0.45f * bright) * intensityScale;
+      // Boosted intensity to ~95% maximum (was 85%)
+      float finalAlpha = std::min(0.95f, 0.85f * bright) * intensityScale;
 
       juce::Colour cCore = c.brighter(0.5f).withAlpha(finalAlpha);
       juce::Colour cMid = c.withAlpha(finalAlpha * 0.75f);

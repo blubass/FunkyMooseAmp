@@ -70,13 +70,13 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   // for the static background to achieve maximum performance.
   // Dynamic elements (Meters, Glows) are drawn on top.
 
-  for (auto *k : {&gainKnob,     &bassKnob,    &midKnob,        &trebleKnob,
-                  &volumeKnob,   &compInKnob,  &compThreshKnob, &compMakeKnob,
-                  &compAtkKnob,  &compRelKnob, &oct1Knob,       &oct2Knob,
-                  &octMixKnob,   &envAtkKnob,  &envDecKnob,     &envRangeKnob,
-                  &phRateKnob,   &phColKnob,   &phMixKnob,      &chRateKnob,
-                  &chDepthKnob,  &chMixKnob,   &outKnob,        &mixKnob,
-                  &monoMakerKnob}) {
+  for (auto *k : {&gainKnob,     &bassKnob,     &midKnob,        &trebleKnob,
+                  &volumeKnob,   &compInKnob,   &compThreshKnob, &compMakeKnob,
+                  &compAtkKnob,  &compRelKnob,  &compMixKnob,    &oct1Knob,
+                  &oct2Knob,     &octMixKnob,   &envAtkKnob,     &envDecKnob,
+                  &envRangeKnob, &phRateKnob,   &phColKnob,      &phMixKnob,
+                  &chRateKnob,   &chDepthKnob,  &chMixKnob,      &outKnob,
+                  &mixKnob,      &monoMakerKnob}) {
     content.addAndMakeVisible(*k);
 
     // Init Logic (Inline) + POPUP ENABLED
@@ -98,9 +98,9 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   };
 
   setGroup({&gainKnob, &bassKnob, &midKnob, &trebleKnob, &volumeKnob}, "AMP");
-  setGroup(
-      {&compInKnob, &compThreshKnob, &compMakeKnob, &compAtkKnob, &compRelKnob},
-      "COMP");
+  setGroup({&compInKnob, &compThreshKnob, &compMakeKnob, &compAtkKnob,
+            &compRelKnob, &compMixKnob},
+           "COMP");
   setGroup({&oct1Knob, &oct2Knob, &octMixKnob}, "OCT");
   setGroup({&envAtkKnob, &envDecKnob, &envRangeKnob}, "ENV");
   setGroup({&phRateKnob, &phColKnob, &phMixKnob}, "PH");
@@ -192,13 +192,14 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   toggleTooltips.setToggleState(true, juce::dontSendNotification);
   toggleTooltips.onClick = [this] {
     const bool show = toggleTooltips.getToggleState();
-    for (auto *k : {&gainKnob,    &bassKnob,    &midKnob,        &trebleKnob,
-                    &volumeKnob,  &compInKnob,  &compThreshKnob, &compMakeKnob,
-                    &compAtkKnob, &compRelKnob, &oct1Knob,       &oct2Knob,
-                    &octMixKnob,  &envAtkKnob,  &envDecKnob,     &envRangeKnob,
-                    &phRateKnob,  &phColKnob,   &phMixKnob,      &chRateKnob,
-                    &chDepthKnob, &chMixKnob,   &outKnob,        &monoMakerKnob,
-                    &irMixKnob}) {
+    for (auto *k :
+         {&gainKnob,      &bassKnob,    &midKnob,        &trebleKnob,
+          &volumeKnob,    &compInKnob,  &compThreshKnob, &compMakeKnob,
+          &compAtkKnob,   &compRelKnob, &compMixKnob,    &oct1Knob,
+          &oct2Knob,      &octMixKnob,  &envAtkKnob,     &envDecKnob,
+          &envRangeKnob,  &phRateKnob,  &phColKnob,      &phMixKnob,
+          &chRateKnob,    &chDepthKnob, &chMixKnob,      &outKnob,
+          &monoMakerKnob, &irMixKnob}) {
       k->setPopupDisplayEnabled(show, show, this);
     }
   };
@@ -341,8 +342,10 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
     if (!hasUser)
       m.addItem("(No User Presets)", false, false, nullptr);
 
-    m.showMenuAsync(
-        juce::PopupMenu::Options().withTargetComponent(presetSelector));
+    m.showMenuAsync(juce::PopupMenu::Options()
+                        .withTargetComponent(presetSelector)
+                        .withStandardItemHeight(
+                            54)); // More compact than 110, but still large
   };
 
   savePresetButton.onClick = [this] {
@@ -444,10 +447,19 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   compMkAtt = std::make_unique<SA>(ts, "compMakeup", compMakeKnob);
   compAtkAtt = std::make_unique<SA>(ts, "compAttack", compAtkKnob);
   compRelAtt = std::make_unique<SA>(ts, "compRelease", compRelKnob);
+  compMixAtt = std::make_unique<SA>(ts, "compMix", compMixKnob);
   compAutoMakeupAtt =
       std::make_unique<BA>(ts, "compAutoMakeup", compAutoMakeupToggle);
   tunerAttachment = std::make_unique<BA>(ts, "tunerOn", tunerToggle);
   compRatAtt = std::make_unique<CA>(ts, "compRatio", ratioBox);
+  // Sicherheits-Fallback: Items explizit neu setzen, falls Attachment sie
+  // geleert hat
+  if (ratioBox.getNumItems() == 0) {
+    ratioBox.addItem("4:1", 1);
+    ratioBox.addItem("8:1", 2);
+    ratioBox.addItem("12:1", 3);
+    ratioBox.addItem("20:1", 4);
+  }
 
   // FX
   octOnAtt = std::make_unique<BA>(ts, "octOn", octOn);
@@ -484,13 +496,13 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   monoInputAtt = std::make_unique<BA>(ts, "forceMonoInput", monoInputButton);
 
   // Force 3 decimal places for popups (overriding attachment defaults)
-  for (auto *k : {&gainKnob,      &bassKnob,    &midKnob,        &trebleKnob,
-                  &volumeKnob,    &compInKnob,  &compThreshKnob, &compMakeKnob,
-                  &compAtkKnob,   &compRelKnob, &oct1Knob,       &oct2Knob,
-                  &octMixKnob,    &envAtkKnob,  &envDecKnob,     &envRangeKnob,
-                  &phRateKnob,    &phColKnob,   &phMixKnob,      &chRateKnob,
-                  &chDepthKnob,   &chMixKnob,   &outKnob,        &mixKnob,
-                  &monoMakerKnob, &irMixKnob}) {
+  for (auto *k : {&gainKnob,     &bassKnob,      &midKnob,        &trebleKnob,
+                  &volumeKnob,   &compInKnob,    &compThreshKnob, &compMakeKnob,
+                  &compAtkKnob,  &compRelKnob,   &compMixKnob,    &oct1Knob,
+                  &oct2Knob,     &octMixKnob,    &envAtkKnob,     &envDecKnob,
+                  &envRangeKnob, &phRateKnob,    &phColKnob,      &phMixKnob,
+                  &chRateKnob,   &chDepthKnob,   &chMixKnob,      &outKnob,
+                  &mixKnob,      &monoMakerKnob, &irMixKnob}) {
     k->textFromValueFunction = [](double value) {
       return juce::String(value, 1);
     };
@@ -1428,6 +1440,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   labelUnder(compMakeKnob, "MAKEUP", 15.0f);
   labelUnder(compAtkKnob, "ATTACK", 15.0f);
   labelUnder(compRelKnob, "RELEASE", 15.0f);
+  labelUnder(compMixKnob, "DRY/WET", 15.0f);
 
   g.setColour(juce::Colour(0xffcfc5b0));
   {
@@ -2301,6 +2314,23 @@ void FunkyMooseAudioProcessorEditor::layoutComp(
   placeInSlot(compAtkKnob, 1, 1, k);
   placeInSlot(compRelKnob, 1, 2, k);
 
+  // Comp-Mix-Knob ganz an den rechten Rand des Compressor-Moduls
+  {
+    // area ist die innere Grid-Area des Compressors (hat links und rechts
+    // spacing) Wir setzen ihn so weit rechts wie moeglich, knapp links neben
+    // den ON/OFF Toggle Bereich
+    float cx = area.getRight() - 12.0f;
+
+    // Vertikal zentriert, evt. einen Tick hoeher (0.43 statt 0.5) wie
+    // gewuenscht
+    float cy = area.getY() + area.getHeight() * 0.43f;
+
+    const float mixSize = 56.0f;
+    compMixKnob.setBounds((int)(cx - mixSize * 0.5f),
+                          (int)(cy - mixSize * 0.5f), (int)mixSize,
+                          (int)mixSize);
+  }
+
   // GR Meter: Vertical on the Left (Maximum Analog Height)
   {
     const auto &L = getLayout();
@@ -2511,7 +2541,7 @@ void FunkyMooseAudioProcessorEditor::timerCallback() {
     // Comp
     setAlphaForModule(compOn.getToggleState(),
                       {&compInKnob, &compThreshKnob, &compMakeKnob,
-                       &compAtkKnob, &compRelKnob, &ratioBox,
+                       &compAtkKnob, &compRelKnob, &compMixKnob, &ratioBox,
                        &compAutoMakeupToggle, &punchButton});
 
     // FX Slot 0 (Octaver)

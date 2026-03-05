@@ -414,6 +414,8 @@ private:
                         juce::Slider::NoTextBox};
   HoverKnob compRelKnob{juce::Slider::RotaryHorizontalVerticalDrag,
                         juce::Slider::NoTextBox};
+  HoverKnob compMixKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                        juce::Slider::NoTextBox};
   juce::ComboBox ratioBox;
   // Module on/off (UI toggles; wiring to DSP can come later)
   juce::ToggleButton compOn;
@@ -503,7 +505,7 @@ private:
   std::unique_ptr<ButtonAttachment> compOnAtt;
   std::unique_ptr<ButtonAttachment> punchAtt;
   std::unique_ptr<SliderAttachment> compInAtt, compThrAtt, compMkAtt,
-      compAtkAtt, compRelAtt;
+      compAtkAtt, compRelAtt, compMixAtt;
   std::unique_ptr<ComboAttachment> compRatAtt;
 
   std::unique_ptr<ButtonAttachment> octOnAtt;

@@ -58,6 +58,10 @@ public:
                                   const juce::Rectangle<int> &area,
                                   const juce::String &sectionName) override;
 
+  void drawComboBox(juce::Graphics &g, int width, int height, bool isButtonDown,
+                    int buttonX, int buttonY, int buttonW, int buttonH,
+                    juce::ComboBox &box) override;
+
   // New: Popup Bubble for Knob Values
   void drawBubble(juce::Graphics &g, juce::BubbleComponent &bubble,
                   const juce::Point<float> &tip,

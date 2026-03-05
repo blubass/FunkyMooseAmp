@@ -37,14 +37,14 @@ public:
     slap.reset();
     dcBlocker.reset();
 
-    bassDbSm.reset(spec.sampleRate, 0.05); // 50ms smooth
-    midDbSm.reset(spec.sampleRate, 0.05);
-    trebleDbSm.reset(spec.sampleRate, 0.05);
-    inputGainSm.reset(spec.sampleRate, 0.05);
-    volumeSm.reset(spec.sampleRate, 0.05);
+    bassDbSm.reset(spec.sampleRate, 0.12); // 120ms smooth (was 80ms)
+    midDbSm.reset(spec.sampleRate, 0.12);
+    trebleDbSm.reset(spec.sampleRate, 0.12);
+    inputGainSm.reset(spec.sampleRate, 0.12);
+    volumeSm.reset(spec.sampleRate, 0.12);
     ampOnSm.reset(spec.sampleRate, 0.02);   // 20ms fade
     tubeOnSm.reset(spec.sampleRate, 0.02);  // 20ms fade
-    slapMixSm.reset(spec.sampleRate, 0.05); // 50ms fade for slap
+    slapMixSm.reset(spec.sampleRate, 0.12); // 120ms fade for slap
 
     bass.prepare(spec);
     mid.prepare(spec);
@@ -163,17 +163,24 @@ public:
 
     const int numSamples = (int)ctx.getOutputBlock().getNumSamples();
 
-    // 1. Advance Smoothed Values for EQ (skip to end of block for efficiency)
-    bassDbSm.skip(numSamples);
-    midDbSm.skip(numSamples);
-    trebleDbSm.skip(numSamples);
-    slapMixSm.skip(numSamples);
-    // don't skip volumeSm here because it must be stepped synchronously with
-    // the amp output block don't skip volumeSm here because it must be stepped
-    // synchronously with the amp output block
+    // 1. Update EQ Coefficients only when values are actually changing
+    // (prevents clicking)
+    float b = bassDbSm.getNextValue();
+    float m = midDbSm.getNextValue();
+    float t = trebleDbSm.getNextValue();
+    float sMix = slapMixSm.getNextValue();
+    // Skip back - we only needed the first value to check if smoothing
+    // Actually advance through whole block
+    bassDbSm.skip(numSamples - 1);
+    midDbSm.skip(numSamples - 1);
+    trebleDbSm.skip(numSamples - 1);
+    slapMixSm.skip(numSamples - 1);
 
-    // Update Coefficients
-    updateFilters();
+    bool eqChanged =
+        (std::abs(b - lastB) > 0.01f || std::abs(m - lastM) > 0.01f ||
+         std::abs(t - lastT) > 0.01f || std::abs(sMix - lastSlapMix) > 0.005f);
+    if (eqChanged)
+      updateFilters();
 
     // 2. Amp Simulation (Tube Sat + EQ)
     const bool ampIsActive = isAmpActuallyActive();

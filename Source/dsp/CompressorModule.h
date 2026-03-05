@@ -63,6 +63,8 @@ public:
     slope = 1.0f - (1.0f / ratio);
   }
 
+  void setMix(float m) { userMix = juce::jlimit(0.0f, 1.0f, m); }
+
   void setAttackMs(float ms) {
     attackMs = juce::jmax(0.5f, ms);
     attackCoeff = std::exp(-1.0 / (sr * (attackMs * 0.001)));
@@ -156,7 +158,7 @@ public:
 
       // Apply to all channels
       const float totalGain = gr * makeupLin;
-      const float mix = enableSm.getNextValue();
+      const float mix = enableSm.getNextValue() * userMix;
 
       for (int ch = 0; ch < numCh; ++ch) {
         float *ptr = block.getChannelPointer((size_t)ch);
@@ -248,6 +250,7 @@ private:
   float gcRelease = 0.9999f;
   float scEnv = 0.0f;
   float gr = 1.0f;
+  float userMix = 1.0f;
 
   bool levelMatchEnabled = true;
   float levelMatchGainLin = 1.0f;
