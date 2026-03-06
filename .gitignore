@@ -43,13 +43,30 @@ install_manifest.txt
 *.xcworkspace
 *.xcodeproj
 DerivedData/
+*.xcuserstate
+*.xcuserdata/
 
 # ===============================
-# Binary plugin files (nicht ins Repo!)
+# Crash- & Log-Dateien
 # ===============================
-*.vst3
-*.component
-*.app
+*.crash
+*.log
+
+# ===============================
+# Test-/Coverage-Artefakte
+# ===============================
+Testing/
+*.profraw
+*.profdata
+*.gcov
+
+# ===============================
+# Provisioning/Keys (Sicherheit)
+# ===============================
+*.mobileprovision
+*.p12
+*.pem
+*.key
 
 # ===============================
 # Release Artefakte / Distribution
@@ -59,9 +76,22 @@ DerivedData/
 DMG_STAGING/
 
 # ===============================
+# Plugin Binaries (lokal erzeugt)
+# ===============================
+*.vst3
+*.component
+*.app
+
+# ===============================
+# Notarization / API / Credentials
+# ===============================
+.notarytool*
+
+# ===============================
 # Backup / Temp files
 # ===============================
 *.bak
 *.tmp
 *.orig
 *.save
+*.icloud

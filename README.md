@@ -61,3 +61,113 @@ Can be built as VST3, AU, and a Standalone App using CMake.
 cmake -B build
 cmake --build build --target FUNKY_MOOSE_AMP_Standalone
 ```
+
+# Funky Moose Amp
+![Funky Moose Amp](Source/Assets/screenshot_v120.png)
+
+*(German version see [README_de.md](README_de.md))*
+
+Funky Moose Amp is a modern, professional bass amplifier plugin designed for clarity, punch, and character. Built with JUCE and engineered for macOS (Intel & Apple Silicon), it combines a responsive solid‑state preamp, intelligent dynamics, creative modulation effects, and a distinctive interactive interface.
+
+This is not a generic amp simulator. It is a tone-shaping instrument built for funk, groove, and expressive bass playing.
+
+---
+
+# Key Features
+
+## 🎚 Input & Tuner Section
+- **High‑Precision Tuner** – Always visible and instantly responsive.
+- **Input Stage** – Control how hard the signal drives the preamp.
+
+---
+
+## 🔥 Amp & Tone Section
+A custom-designed solid‑state preamp with optional tube-style saturation.
+
+- **Gain** – From clean articulation to gritty drive.
+- **Bass / Mid / Treble** – Musical, analog‑voiced tone stack.
+- **Master Volume** – Preamp output control.
+- **Tube Mode** – Asymmetric harmonic saturation for warmth and edge.
+- **Slap Mode** – Modern mid‑scoop with enhanced lows and highs.
+- **Low Cut** – 40 Hz high-pass filter for tighter low-end.
+- **Auto Gain Compensation** – Maintains consistent perceived loudness when shaping tone.
+
+---
+
+## 🎛 Smart Compressor
+Transparent VCA-style compression designed specifically for bass.
+
+- **Drive, Threshold, Makeup**
+- **Attack & Release**
+- **Selectable Ratios** – 4:1, 8:1, 12:1, 20:1
+- **Punch Mode** – Enhanced transient response and low-end control
+- **Auto Makeup** – Intelligent level compensation
+- **Dry/Wet Blend** – Parallel compression without phase artifacts
+- **Gain Reduction Meter** – Real-time visual feedback
+
+---
+
+## 🎶 Modulation & Effects (ModFX)
+High-quality built-in effects, usable in serial or partial parallel routing.
+
+- **Octaver** – -1 and +1 octave blend
+- **Envelope Filter** – Touch-sensitive auto-wah
+- **Phaser** – 4-stage classic modulation
+- **Chorus** – Analog-style stereo width
+- **Parallel Mode** – Preserve low-end clarity while adding movement
+
+---
+
+## 🧱 Cabinet & Master Section
+
+- **Master Output**
+- **Mono Maker** – Tight, phase-coherent low frequencies
+- **Global Dry/Wet** – Blend processed and DI signal
+- **Cab IR Loader** – Load custom impulse responses
+- Includes custom "Funky Moose" bass cabinet IRs
+
+---
+
+## 🫎 Interactive Visual Engine
+The Moose is not decoration.
+It visually reflects signal level, compression intensity, and active features in real time.
+
+- RMS-driven level animation
+- Compression glow feedback
+- Punch mode visual highlight
+- Custom look & feel with dynamic lighting
+
+---
+
+# Presets & MIDI
+
+- Factory presets covering clean, vintage, modern slap, synth-style, and driven tones
+- User preset support
+- MIDI Learn for fast hardware controller mapping
+
+---
+
+# System & Build
+
+- macOS (Intel & Apple Silicon)
+- VST3, AU, Standalone
+- Built with JUCE and CMake
+
+Build example:
+
+```bash
+cmake -B build
+cmake --build build --config Release
+```
+
+---
+
+# Status
+
+Funky Moose Amp is actively developed and maintained.
+Official signed and notarized builds are provided for distribution releases.
+
+---
+
+If this plugin adds value to your sound, consider supporting the project.
+Stay funky.
