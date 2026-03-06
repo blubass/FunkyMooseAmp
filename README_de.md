@@ -1,5 +1,5 @@
 # Funky Moose Amp
-![Funky Moose Amp](https://raw.githubusercontent.com/blubass/FunkyMooseAmp/main/Plugin%20Screenshot.png)
+![Funky Moose Amp](Source/Assets/screenshot_v106.png)
 
 *(Englische Version siehe [README.md](README.md))*
 
