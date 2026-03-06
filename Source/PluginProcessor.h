@@ -13,7 +13,7 @@ class FunkyMooseAudioProcessor
       public juce::AudioProcessorValueTreeState::Listener,
       private juce::AsyncUpdater {
 public:
-  static constexpr int projectVersion = 101;
+  static constexpr int projectVersion = 120;
 
   FunkyMooseAudioProcessor();
   ~FunkyMooseAudioProcessor() override = default;

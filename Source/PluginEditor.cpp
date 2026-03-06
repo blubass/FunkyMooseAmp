@@ -555,41 +555,6 @@ void FunkyMooseAudioProcessorEditor::ensureCachedTextures(int skinIndex) {
 
     juce::Random rng(42);
 
-    // --- ROAD WORN: GRIME & DIRT CLOUDS ---
-    for (int i = 0; i < 400; ++i) {
-      float y = plate.getY() + rng.nextFloat() * plate.getHeight();
-      float x = plate.getX() + rng.nextFloat() * plate.getWidth();
-      float s = 40.0f + rng.nextFloat() * 200.0f;
-      float a = 0.05f + rng.nextFloat() * 0.12f;
-      ig.setColour(
-          juce::Colour(0xff15100a).withAlpha(a)); // Dark brown/black grime
-      ig.fillEllipse(x - s / 2, y - s / 2, s, s);
-    }
-
-    // Layer 1: Heavy pitting/corrosion & Gouges (Dark)
-    ig.setColour(juce::Colours::black.withAlpha(0.45f)); // Darker
-    for (int i = 0; i < 5000; ++i) {                     // Way more
-      float y = plate.getY() + rng.nextFloat() * plate.getHeight();
-      float x = plate.getX() + rng.nextFloat() * plate.getWidth();
-      float w = 2.0f + rng.nextFloat() * 40.0f;
-      float h = 1.0f + rng.nextFloat() * 2.5f;
-      ig.fillRect(x, y, w, h);
-    }
-
-    // Deep Gouges (with highlight edge)
-    for (int i = 0; i < 300; ++i) {
-      float y = plate.getY() + rng.nextFloat() * plate.getHeight();
-      float x = plate.getX() + rng.nextFloat() * plate.getWidth();
-      float w = 15.0f + rng.nextFloat() * 90.0f;
-      float h = 1.5f + rng.nextFloat() * 2.0f;
-
-      ig.setColour(juce::Colours::black.withAlpha(0.7f));
-      ig.fillRect(x, y, w, h);
-
-      ig.setColour(juce::Colours::white.withAlpha(0.12f));
-      ig.fillRect(x, y + h, w, 0.8f); // Catch light inside the gouge
-    }
-
     // Layer 2: Brass/Gold Scratches (Highlights)
     ig.setColour(
         juce::Colour::fromRGB(255, 200, 100).withAlpha(0.15f)); // Brighter
@@ -601,7 +566,6 @@ void FunkyMooseAudioProcessorEditor::ensureCachedTextures(int skinIndex) {
       ig.fillRect(x, y, w, h);
     } // Close the 3500 loop here
 
-    // --- TAPE RESIDUE AND SCRATCHY HAIRS ---
     // --- TAPE RESIDUE AND SCRATCHY HAIRS ---
     ig.setColour(
         juce::Colour(0xffe0ead5)
@@ -625,7 +589,6 @@ void FunkyMooseAudioProcessorEditor::ensureCachedTextures(int skinIndex) {
     }
 
     // --- HEAVY BORDER AMBIENT OCCLUSION (Dust/Nicotine build up near tolex)
-    // ---
     for (int layer = 0; layer < 5; ++layer) {
       float inset = layer * 4.0f;
       ig.setColour(
@@ -1337,14 +1300,13 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   drawFrame(L.elchArea, 0.0f, 1.5f, darkFrameCol, true, -0.2f);
 
   // Titles disabled as requested (but header space reserved for badges)
-  g.setColour(juce::Colour(0xffcfc5b0));
-
   auto titleAt = [&](juce::Rectangle<float> r, const juce::String &t,
                      juce::Justification just = juce::Justification::left) {
     auto header = r.reduced(14.0f, 5.0f).removeFromTop(26.0f);
     drawLabel(g, header, t, 17.0f, just);
   };
 
+  g.setColour(juce::Colour(0xffcfc5b0));
   titleAt(L.amp.reduced(84.0f, 0.0f), "AMP", juce::Justification::centred);
   titleAt(L.comp.reduced(84.0f, 0.0f), "COMPRESSOR",
           juce::Justification::centred);
@@ -1397,7 +1359,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
 
   // SLAP label
   {
-    // SLAP label - handled below
+      // SLAP label - handled below
   }
 
   // TUBE & LOW CUT Section (Unified)
@@ -1636,6 +1598,82 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
 
   for (size_t i = 0; i < 4; ++i) {
     addScrews(L.fxSlots[i], 5.0f);
+  }
+
+  // --- ORGANIC DYNAMIC WEAR (LAYERED AT THE FRONT, HAND-RUBBED LOOK) ---
+  juce::Random rng(99); 
+  auto plate = L.plate;
+
+  // 1. Organic Grime Clouds (Radial fades, not hard circles)
+  for (int i = 0; i < 180; ++i) { 
+    float y = plate.getY() + rng.nextFloat() * plate.getHeight();
+    float x = plate.getX() + rng.nextFloat() * plate.getWidth();
+    float s = 30.0f + rng.nextFloat() * 180.0f;
+    float a = 0.03f + rng.nextFloat() * 0.08f; 
+    
+    juce::ColourGradient cg(juce::Colour(0xff0a0805).withAlpha(a), x, y,
+                            juce::Colours::transparentBlack, x + s * 0.5f, y + s * 0.5f, true);
+    g.setGradientFill(cg);
+    g.fillEllipse(x - s / 2, y - s / 2, s, s);
+  }
+
+  // 2. Focused "Finger Smudge" Areas (Gradients around knobs)
+  auto addOrganicWear = [&](float cx, float cy, float rBase) {
+    // Main contact smudge (Offset slightly to the right/top where grip happens)
+    float ox = cx + 15.0f;
+    float oy = cy - 10.0f;
+    float sMain = rBase * 2.8f;
+    juce::ColourGradient smudgeG(juce::Colour(0xff000000).withAlpha(0.25f), ox, oy,
+                                 juce::Colours::transparentBlack, ox + sMain * 0.5f, oy + sMain * 0.5f, true);
+    g.setGradientFill(smudgeG);
+    g.fillEllipse(ox - sMain * 0.5f, oy - sMain * 0.5f, sMain, sMain);
+
+    // Scattered deeper "pitting" spots
+    for (int i = 0; i < 25; ++i) { 
+      float angle = rng.nextFloat() * juce::MathConstants<float>::twoPi;
+      float dist = rBase * (0.85f + rng.nextFloat() * 0.5f);
+      float px = cx + std::cos(angle) * dist;
+      float py = cy + std::sin(angle) * dist;
+      float ps = 3.0f + rng.nextFloat() * 15.0f;
+      g.setColour(juce::Colour(0xff080808).withAlpha(0.1f + rng.nextFloat() * 0.15f)); 
+      g.fillEllipse(px - ps / 2, py - ps / 2, ps, ps);
+    }
+  };
+
+  addOrganicWear(plate.getX() + 180, plate.getY() + 220, 90.0f);      // Gain
+  addOrganicWear(plate.getX() + 180, plate.getBottom() - 180, 75.0f); // Volume
+  addOrganicWear(plate.getRight() - 320, plate.getBottom() - 240, 110.0f); // Master
+
+  // 3. Hand-Rubbed "Wipe" Streaks (Long, subtle marks)
+  for (int i = 0; i < 15; ++i) {
+    float y = plate.getY() + rng.nextFloat() * plate.getHeight();
+    float x = plate.getX() + rng.nextFloat() * plate.getWidth();
+    float w = 200.0f + rng.nextFloat() * 400.0f;
+    float h = 10.0f + rng.nextFloat() * 40.0f;
+    float rot = (rng.nextFloat() - 0.5f) * 0.2f;
+
+    g.saveState();
+    g.addTransform(juce::AffineTransform::rotation(rot, x, y));
+    juce::ColourGradient streakG(juce::Colours::transparentBlack, x, y,
+                                 juce::Colour(0xff000000).withAlpha(0.06f), x + w * 0.5f, y, false);
+    streakG.addColour(0.5f, juce::Colour(0xff000000).withAlpha(0.08f));
+    streakG.addColour(1.0f, juce::Colours::transparentBlack);
+    g.setGradientFill(streakG);
+    g.fillRect(x - w * 0.5f, y - h * 0.5f, w, h);
+    g.restoreState();
+  }
+
+  // 4. Fine Pitting (Metal exposure)
+  for (int i = 0; i < 80; ++i) { 
+    float y = plate.getY() + rng.nextFloat() * plate.getHeight();
+    float x = plate.getX() + rng.nextFloat() * plate.getWidth();
+    float w = 6.0f + rng.nextFloat() * 40.0f;
+    float h = 1.0f + rng.nextFloat() * 1.5f;
+
+    g.setColour(juce::Colours::black.withAlpha(0.5f));
+    g.fillRect(x, y, w, h);
+    g.setColour(juce::Colours::white.withAlpha(0.08f));
+    g.fillRect(x, y + h, w, 0.6f);
   }
 }
 

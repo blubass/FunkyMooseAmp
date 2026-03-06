@@ -384,7 +384,7 @@ void FunkyMooseLookAndFeel::drawToggleButton(juce::Graphics &g,
     auto bloomCol =
         (isValues)
             ? juce::Colour(0xff22ff22)
-            : (isTuner ? juce::Colour(0xff00ffff) // Cyan Blue Bloom
+            : (isTuner ? juce::Colour(0xffff8800) // Nixie Orange Bloom
                        : (isMono ? juce::Colour::fromRGB(
                                        35, 95, 35) // Darker Green Bloom
                                  : (isMainToggle

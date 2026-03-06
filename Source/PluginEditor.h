@@ -56,13 +56,19 @@ private:
 
       // 1. Meter Housing / Glass (Deeper & more 3D)
       juce::ColourGradient housingGrad(juce::Colour(0xff080808), r.getX(),
-                                       r.getY(), juce::Colour(0xff1a1a1a),
+                                       r.getY(), juce::Colour(0xff121212),
                                        r.getX(), r.getBottom(), false);
       g.setGradientFill(housingGrad);
       g.fillRoundedRectangle(r, 4.0f);
 
+      // --- GLASS SPECULAR REFLECTION ---
+      g.setColour(juce::Colours::white.withAlpha(0.04f));
+      juce::Path glassPath;
+      glassPath.addTriangle(r.getX(), r.getY(), r.getRight(), r.getY(), r.getX(), r.getBottom());
+      g.fillPath(glassPath);
+
       // Deep Inner shadow for recessed feeling
-      g.setColour(juce::Colours::black.withAlpha(0.85f));
+      g.setColour(juce::Colours::black.withAlpha(0.9f));
       g.drawRoundedRectangle(r.reduced(0.5f), 4.0f, 1.8f);
 
       // --- METALLIC RIM / INNER GLOW ---
@@ -77,26 +83,21 @@ private:
       const float vuMapping = std::pow(
           level, isGR ? 0.35f : 0.45f); // Slightly more aggressive curve
 
-      const juce::Colour cOrange = juce::Colour(0xffff9900);
-      const juce::Colour cCyan = juce::Colour(0xff00ffff);
+      // --- CYBER-SUNSET MULTI-STOP PALETTE ---
+      auto getSegCol = [](float pos) {
+        if (pos < 0.5f)
+          return juce::Colour(0xff4b0082).interpolatedWith(juce::Colour(0xffff00ff), pos * 2.0f);
+        if (pos < 0.85f)
+          return juce::Colour(0xffff00ff).interpolatedWith(juce::Colour(0xffffd700), (pos - 0.5f) / 0.35f);
+        return juce::Colour(0xffffd700).interpolatedWith(juce::Colours::white, (pos - 0.85f) / 0.15f);
+      };
 
       for (int i = 0; i < numSegments; ++i) {
         float pos = (float)i / (float)(numSegments - 1);
-        juce::Colour segCol =
-            cOrange.interpolatedWith(cCyan, std::pow(pos, 1.3f));
+        juce::Colour segCol = getSegCol(pos);
 
-        bool active = false;
-        if (isVertical) {
-          if (isGR)
-            active = ((1.0f - pos) <= (1.0f - level));
-          else
-            active = (pos <= vuMapping);
-        } else {
-          if (isGR)
-            active = ((1.0f - pos) <= (1.0f - level));
-          else
-            active = (pos <= vuMapping);
-        }
+        bool active = (pos <= vuMapping);
+        if (isGR) active = ((1.0f - pos) <= (1.0f - level));
 
         juce::Rectangle<float> segRect;
         if (isVertical) {
@@ -112,20 +113,22 @@ private:
         }
 
         if (active) {
-          g.setColour(segCol.withAlpha(0.95f));
+          // Main Glow Core
+          g.setColour(segCol.withAlpha(0.85f));
           g.fillRect(segRect);
-          // High-Intensity core
-          g.setColour(juce::Colours::white.withAlpha(0.65f));
-          g.fillRect(segRect.reduced(isVertical ? 1.5f : 0.5f,
-                                     isVertical ? 0.5f : 1.5f));
+          
+          // High-Intensity core highlight
+          g.setColour(juce::Colours::white.withAlpha(0.6f + (pos * 0.4f)));
+          g.fillRect(segRect.reduced(isVertical ? 2.5f : 0.5f,
+                                     isVertical ? 0.5f : 2.5f));
         } else {
-          float distanceFromLevel = vuMapping - pos;
-          if (distanceFromLevel > 0.0f && distanceFromLevel < 0.2f) {
-            float glowAmount = 1.0f - (distanceFromLevel / 0.2f);
-            g.setColour(segCol.withAlpha(0.4f * glowAmount));
+          float distanceFromLevel = std::abs(vuMapping - pos);
+          if (distanceFromLevel < 0.15f) {
+            float glowAmount = 1.0f - (distanceFromLevel / 0.15f);
+            g.setColour(segCol.withAlpha(0.35f * glowAmount));
             g.fillRect(segRect);
           } else {
-            g.setColour(segCol.darker(0.9f).withAlpha(0.12f));
+            g.setColour(segCol.darker(0.95f).withAlpha(0.08f));
             g.fillRect(segRect);
           }
         }
