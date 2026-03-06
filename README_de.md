@@ -1,5 +1,5 @@
 # Funky Moose Amp
-![Funky Moose Amp](Source/Assets/screenshot_v106.png)
+![Funky Moose Amp](Source/Assets/screenshot_v120.png)
 
 *(Englische Version siehe [README.md](README.md))*
 
