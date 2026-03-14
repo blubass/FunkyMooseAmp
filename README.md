@@ -1,96 +1,82 @@
 # Funky Moose Amp
-![Funky Moose Amp](Source/Assets/screenshot_v120.png)
 
-*(German version see [README_de.md](README_de.md))*
+<p align="center">
+  <img src="docs/banner.png" width="100%" alt="Funky Moose Amp Banner">
+</p>
 
-Funky Moose Amp is a modern, professional bass amplifier plugin designed for clarity, punch, and character. Built with JUCE and engineered for macOS (Intel & Apple Silicon), it combines a responsive solid-state preamp, intelligent dynamics, creative modulation effects, and a distinctive interactive interface.
+![Stay Funky](https://img.shields.io/badge/Stay%20Funky-Moose%20Powered-darkgreen?style=for-the-badge)
+![JUCE](https://img.shields.io/badge/JUCE-framework-orange)
+![C++](https://img.shields.io/badge/C++-17-blue)
+![VST3](https://img.shields.io/badge/VST3-plugin-green)
+![AudioUnit](https://img.shields.io/badge/AU-macOS-lightgrey)
+![Release](https://img.shields.io/github/v/release/blubass/FunkyMooseAmp)
 
-This is not a generic amp simulator. It is a tone-shaping instrument built for funk, groove, and expressive bass playing.
+**Funky Moose Amp** is a clean and punchy bass amp plugin designed for groove, funk, slap and modern bass tones. 
 
----
-
-# Key Features
-
-## 🎚 Input & Tuner
-- **High-Precision Tuner** – always visible and instantly responsive  
-- **Input Stage** – controls how hard the signal drives the preamp  
-
----
-
-## 🔥 Amp & Tone
-A custom-designed solid-state preamp with optional tube-style saturation.
-
-- **Gain** – from clean articulation to gritty drive  
-- **Bass / Mid / Treble** – musical tone stack  
-- **Master Volume** – preamp output control  
-- **Tube Mode** – asymmetric harmonic saturation for warmth and edge  
-- **Slap Mode** – modern mid-scoop voicing with enhanced lows and highs  
-- **Low Cut** – 40 Hz high-pass filter for tighter low-end  
-- **Auto Gain Compensation** – maintains consistent perceived loudness  
+Built with JUCE and C++, the plugin focuses on clarity, dynamic response and musical tone shaping. It’s designed to be a tone-shaping instrument rather than just a generic amp simulator.
 
 ---
 
-## 🎛 Smart Compressor
-Transparent VCA-style compression designed specifically for bass.
+## 🚀 Features
 
-- **Drive, Threshold, Makeup**  
-- **Attack & Release**  
-- **Selectable Ratios** – 4:1, 8:1, 12:1, 20:1  
-- **Punch Mode** – enhanced transient response and low-end control  
-- **Auto Makeup** – intelligent level compensation  
-- **Dry/Wet Blend** – parallel compression without phase artifacts  
-- **Gain Reduction Meter** – real-time visual feedback  
-
----
-
-## 🎶 Modulation & Effects (ModFX)
-High-quality built-in effects, usable in serial or partial parallel routing.
-
-- **Octaver** – blend of -1 and +1 octave  
-- **Envelope Filter** – touch-sensitive auto-wah  
-- **Phaser** – classic 4-stage modulation  
-- **Chorus** – analog-inspired stereo width  
-- **Parallel Mode** – preserve low-end clarity while adding movement  
+• **Premium Bass DSP**: High-fidelity amp modeling with extreme dynamic range.  
+• **Built-in Tuner**: High-precision chromatic tuner integrated directly into the UI.  
+• **MIDI Learn**: Real-time safe MIDI mapping. Map any knob or button in seconds.  
+• **9 Selectable Skins**: Classic, Midnight, Electric, Toxic, and more to match your vibe.  
+• **Octaver Module**: Massive analog-style sub-octave generator.  
+• **Enveope Filter / ModFX**: touch-sensitive auto-wah, phaser and chorus.  
+• **Saturation & Color**: Tube mode for harmonic warmth and Slap mode for 8kHz bite.  
+• **Interactive Visual Engine**: The Moose reflects signal levels and compression in real-time.  
+• **DSP Safety**: Soft-clipping and intelligent noise/NaN protection.
 
 ---
 
-## 🧱 Cabinet & Master
+## 💾 Download
 
-- **Master Output**  
-- **Mono Maker** – phase-coherent low frequencies  
-- **Global Dry/Wet** – blend processed and DI signal  
-- **Cab IR Loader** – load custom impulse responses  
-- Includes custom “Funky Moose” bass cabinet IRs  
+Get the latest stable release from the [Releases](https://github.com/blubass/FunkyMooseAmp/releases) page.
 
 ---
 
-## 🫎 Interactive Visual Engine
-The Moose is not decoration.  
-It visually reflects signal level, compression intensity, and active features in real time.
+## 🛠 Installation
 
-- RMS-driven level animation  
-- Compression glow feedback  
-- Punch mode visual highlight  
-- Custom look & feel with dynamic lighting  
+### macOS
+1. **Audio Unit**: Move the `.component` file to `/Library/Audio/Plug-Ins/Components`
+2. **VST3**: Move the `.vst3` file to `/Library/Audio/Plug-Ins/VST3`
+3. **Standalone**: Move the `.app` to your `Applications` folder.
 
----
+*Note: Since the plugin is not code-signed with an Apple Developer certificate, you may need to right-click -> Open or allow it in System Settings > Privacy & Security.*
 
-# Presets & MIDI
-
-- Factory presets covering clean, vintage, modern slap, synth-style, and driven tones  
-- User preset support  
-- MIDI Learn for fast hardware controller mapping  
+### Windows
+1. **VST3**: Move the `.vst3` file (folder) to `C:\Program Files\Common Files\VST3`
 
 ---
 
-# System & Build
+## 🏗 Build from Source
 
-- macOS (Intel & Apple Silicon)  
-- VST3, AU, Standalone  
-- Built with JUCE and CMake  
+### Requirements
+- **CMake** 3.22 or higher
+- **JUCE 8** installed on your system
+- C++17 compatible compiler (Xcode, MSVC, or GCC)
 
-Build example:
-
+### Build Steps
 ```bash
-cmake -B build
+# 1. Clone the repository
+git clone https://github.com/blubass/FunkyMooseAmp.git
+cd FunkyMooseAmp
+
+# 2. Configure (Set JUCE_DIR if not in standard path)
+cmake -B build -DCMAKE_BUILD_TYPE=Release 
+
+# 3. Build
 cmake --build build --config Release
+```
+
+---
+
+## 📄 License
+This project is licensed under the **MIT License**.
+
+## ✍️ Author
+**Uwe Arthur Felchle**  
+Musician, composer and developer.  
+[uwefelchle.at](https://uwefelchle.at)
