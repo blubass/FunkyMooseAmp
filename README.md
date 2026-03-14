@@ -36,6 +36,7 @@ Built with JUCE and C++, the plugin focuses on clarity, dynamic response and mus
 Get the latest stable release from the [Releases](https://github.com/blubass/FunkyMooseAmp/releases) page.
 
 ---
+![Funky Moose Amp](Source/Assets/screenshot_v120.png)
 
 ## 🛠 Installation
 
