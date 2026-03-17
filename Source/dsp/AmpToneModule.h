@@ -4,22 +4,6 @@
 #include "SagModule.h"
 
 //==============================================================================
-// Solid-State Soft Clip (Mark's Method)
-//
-static inline float markSoftClip(float x, float drive) {
-  // drive: 1.0 bis 2.0 (empfohlen)
-  const float a = drive;
-
-  // sehr "clean" Softclip: atan-Form, wenig Farbe
-  float y = (2.0f / juce::MathConstants<float>::pi) * std::atan(a * x);
-
-  // sehr kleine 3rd harmonic Würze (odd harmonics, solid-state feel)
-  y += 0.03f * (x * x * x);
-
-  return y;
-}
-
-//==============================================================================
 // Amp + Tone + Slap Module
 //
 // - Owns input gain and tone filters (bass/mid/treble + slap scoop).
@@ -207,8 +191,17 @@ public:
       preHPF.process(ctx);
       prePresence.process(ctx);
 
-      // Process saturation (Oversampling is now handled by the outer AmpBlock
-      // at 4x)
+      // Pre-calculate tube constants
+      const float drive = saturationDrive * 1.5f;
+      const float tubeBias = 0.15f;
+      const float biasTanh = 0.148885f; // std::tanh(0.15f)
+      
+      auto fastTanh = [](float val) {
+          float av = std::abs(val);
+          if (av >= 3.0f) return (val > 0) ? 1.0f : -1.0f;
+          return val * (27.0f + val * val) / (27.0f + 9.0f * val * val);
+      };
+
       for (int i = 0; i < numSamples; ++i) {
         // CALL SMOOTHERS ONCE PER SAMPLE (Fixed stereo sync bug)
         const float currentGain = inputGainSm.getNextValue();
@@ -220,12 +213,10 @@ public:
           const float dryPreSat = x;
 
           // Tube Saturation (More aggressive, asymmetric for 'Tube' feel)
-          const float drive = saturationDrive * 1.5f;
           float hb = x * drive;
 
-          // Asymmetric shaper
-          const float tubeBias = 0.15f;
-          float y = std::tanh(hb + tubeBias) - std::tanh(tubeBias);
+          // Asymmetric shaper using fast tanh
+          float y = fastTanh(hb + tubeBias) - biasTanh;
 
           // Add some 2nd harmonic (asymmetry) and 3rd harmonic (grid current)
           y += 0.06f * (hb * hb) + 0.04f * (hb * hb * hb);

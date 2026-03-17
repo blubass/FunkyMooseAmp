@@ -143,12 +143,15 @@ public:
       if (!std::isfinite(scEnv))
         scEnv = 0.0f;
 
-      // Detection
+      // Detection (Linear level)
+      // Use juce::jmax to avoid sqrt(0) or negative (though target is squared)
       const float level = std::sqrt(juce::jmax(0.0f, scEnv));
 
       // Calculate Gain
       float g = 1.0f;
       if (level > thresholdLin && level > 0.00001f) {
+        // Gain reduction calculation: g = (threshold / level) ^ (1 - 1/ratio)
+        // Which is Decibels::decibelsToGain(-overDb * slope)
         float inDb = juce::Decibels::gainToDecibels(level);
         float overDb = inDb - thresholdDb;
         g = juce::Decibels::decibelsToGain(-overDb * slope);
@@ -235,7 +238,15 @@ private:
       return x;
     const float sign = (x >= 0.0f) ? 1.0f : -1.0f;
     const float over = (ax - ceilingLin) / ceilingLin;
-    const float shaped = ceilingLin * (1.0f + 0.25f * std::tanh(over * 1.5f));
+    
+    // Fast Tanh Approximation: x * (27 + x^2) / (27 + 9*x^2)
+    auto fastTanh = [](float x) {
+        if (x <= -3.0f) return -1.0f;
+        if (x >= 3.0f) return 1.0f;
+        return x * (27.0f + x * x) / (27.0f + 9.0f * x * x);
+    };
+
+    const float shaped = ceilingLin * (1.0f + 0.25f * fastTanh(over * 1.5f));
     return sign * shaped;
   }
 

@@ -22,7 +22,7 @@ struct Palette {
 
 static Palette getPalette(int index) {
   switch (index) {
-  case 2: // Midnight
+  case 1: // Midnight
     return {juce::Colours::black,
             juce::Colour(0xff0a0a0f),
             juce::Colour(0xff151520),
@@ -36,7 +36,7 @@ static Palette getPalette(int index) {
             1.0f,
             juce::Colours::cyan,
             juce::Colours::cyan.withAlpha(0.5f)};
-  case 3:                              // Vintage (Gold/Bronze)
+  case 2:                              // Vintage (Gold/Bronze)
     return {juce::Colour(0xff1a1614),  // Dark bronze/black background
             juce::Colour(0xff2b2622),  // Dark textured metal plate
             juce::Colour(0xff1e1a17),  // Inset panel background
@@ -50,7 +50,7 @@ static Palette getPalette(int index) {
             4.0f,                      // Frame width
             juce::Colour(0xffffb300),  // Golden Eye
             juce::Colour(0x44ffb300)}; // Warm Glow
-  case 4:                              // Electric
+  case 3:                              // Electric
     return {juce::Colour(0xff1a237e),
             juce::Colour(0xff000000),
             juce::Colour(0xff212121),
@@ -64,7 +64,7 @@ static Palette getPalette(int index) {
             2.0f,
             juce::Colours::lime,
             juce::Colours::lime.withAlpha(0.6f)};
-  case 5: // Used Up
+  case 4: // Used Up
     return {juce::Colour(0xff263238),
             juce::Colour(0xff37474f),
             juce::Colour(0xff455a64),
@@ -78,7 +78,7 @@ static Palette getPalette(int index) {
             2.5f,
             juce::Colours::white.withAlpha(0.7f),
             juce::Colours::grey.withAlpha(0.3f)};
-  case 6: // Bloody
+  case 5: // Bloody
     return {juce::Colour(0xff000000),
             juce::Colour(0xff1a1a1a),
             juce::Colour(0xff2a0000),
@@ -92,7 +92,7 @@ static Palette getPalette(int index) {
             2.0f,
             juce::Colours::red,
             juce::Colour(0xff880000).withAlpha(0.7f)};
-  case 7: // Orange
+  case 6: // Orange
     return {juce::Colour(0xffef6c00),
             juce::Colours::white,
             juce::Colour(0xfff5f5f5),
@@ -106,7 +106,7 @@ static Palette getPalette(int index) {
             6.0f,
             juce::Colours::orange,
             juce::Colours::orange.withAlpha(0.4f)};
-  case 8:                             // Ampeg Black
+  case 7:                             // Ampeg Black
     return {juce::Colour(0xff050505), // Deep black background
             juce::Colour(0xff121212), // Black textured metal plate
             juce::Colour(0xff0a0a0a), // Darker inset panel
@@ -120,7 +120,7 @@ static Palette getPalette(int index) {
             2.0f,
             juce::Colour(0xff2196f3),
             juce::Colour(0xff3f51b5).withAlpha(0.4f)};
-  case 9: // Toxic
+  case 8: // Toxic
     return {juce::Colour(0xff1b5e20),
             juce::Colour(0xff000000),
             juce::Colour(0xff212121),
@@ -134,7 +134,49 @@ static Palette getPalette(int index) {
             1.5f,
             juce::Colour(0xff64dd17),
             juce::Colours::lime.withAlpha(0.7f)};
-  default: // Classic (Now Ampeg Black)
+  case 9: // CyberMoose (Neon synthwave)
+    return {juce::Colour(0xff050010),
+            juce::Colour(0xff1a0033),
+            juce::Colour(0xff0d001a),
+            juce::Colour(0xff2d004d),
+            juce::Colour(0xffff00ff), // Neon Pink
+            juce::Colours::white,
+            juce::Colour(0xff00ffff), // Cyan
+            juce::Colour(0xffff00ff).withAlpha(0.4f),
+            FrameStyle::Neon,
+            0.0f,
+            2.0f,
+            juce::Colour(0xffff00ff),
+            juce::Colour(0xff00ffff).withAlpha(0.6f)};
+  case 10: // IceMoose (Frozen/Crystal)
+    return {juce::Colour(0xffe1f5fe),
+            juce::Colour(0xffb3e5fc),
+            juce::Colour(0xff81d4fa),
+            juce::Colour(0xffffffff),
+            juce::Colour(0xff01579b),
+            juce::Colour(0xff006064),
+            juce::Colour(0xff03a9f4),
+            juce::Colour(0xffffffff),
+            FrameStyle::Neon,
+            25.0f,
+            1.5f,
+            juce::Colour(0xff03a9f4),
+            juce::Colours::white.withAlpha(0.8f)};
+  case 11: // DesertMoose (Rusty/Industrial Sand)
+    return {juce::Colour(0xff3e2723),
+            juce::Colour(0xff5d4037),
+            juce::Colour(0xff4e342e),
+            juce::Colour(0xff3e2723),
+            juce::Colour(0xffff5722), // Rusty Orange
+            juce::Colour(0xffffe0b2),
+            juce::Colour(0xffffccbc),
+            juce::Colour(0xff212121),
+            FrameStyle::Jagged,
+            2.0f,
+            3.0f,
+            juce::Colour(0xffff5722),
+            juce::Colour(0xff795548).withAlpha(0.4f)};
+  default: // Classic (Ampeg Black)
     return {juce::Colour(0xff050505),
             juce::Colour(0xff121212),
             juce::Colour(0xff0a0a0a),

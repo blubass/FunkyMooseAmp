@@ -58,10 +58,11 @@ public:
   }
 
   float getLatency() const {
-    // Sum latencies: OctEnv (Index 3), AmpBlock (Index 5) and Mojo (Index 6)
+    // Sum latencies: OctEnv (Index 3), AmpBlock (Index 5), Mojo (Index 6) and CabSim (Index 8)
     return (float)chain.get<3>().getLatencyInSamples() +
            chain.get<5>().getLatency() +
-           (float)chain.get<6>().getLatencyInSamples();
+           (float)chain.get<6>().getLatencyInSamples() +
+           chain.get<8>().getLatencySamples();
   }
 
   // Accessors to modules for parameter updates

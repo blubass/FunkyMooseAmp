@@ -51,6 +51,7 @@ public:
   void savePreset(const juce::String &presetName);
   juce::File getPresetsFolder();
   void loadFactoryPresets();
+  juce::String currentPresetName;
 
   std::atomic<float> rmsLinear{0.0f};
 
@@ -69,6 +70,7 @@ public:
 
   // Marks that mapping changed; triggers AsyncUpdater to save on message thread
   std::atomic<bool> midiMapDirty{false};
+  std::atomic<bool> latencyDirty{false};
 
   // O(1) CC->Param mapping: -1 means unmapped (Realtime-Safe)
   std::atomic<int> ccToParamIndex[128];
@@ -80,6 +82,12 @@ public:
   void clearMidiMapping(const juce::String &paramID);
   void saveMidiMap();
   void loadMidiMap();
+
+  void updateLatency();
+
+  void handleAkaiMpkMiniMapping(const juce::MidiMessage &msg, int ccNum,
+                                float ccVal);
+  void handleAkaiMpkMiniToggles(const juce::MidiMessage &msg, int noteNum);
 
   void parameterChanged(const juce::String &parameterID,
                         float newValue) override;
@@ -197,6 +205,10 @@ public:
   std::atomic<float> *monoMakerOnParam = nullptr;
   std::atomic<float> *autoGainParam = nullptr;
   std::atomic<float> *forceMonoInputParam = nullptr;
+  std::atomic<float> *mojoCrossoverParam = nullptr;
+  std::atomic<float> *mojoClankParam = nullptr;
+  std::atomic<float> *ampSagParam = nullptr;
+  std::atomic<float> *outThicknessParam = nullptr;
 
 private:
   void handleAsyncUpdate() override;

@@ -155,7 +155,8 @@ FunkyMooseAudioProcessor::createParams() {
   p.push_back(std::make_unique<APC>(
       "skin", "Skin",
       juce::StringArray{"Classic", "Midnight", "Vintage", "Electric", "Used Up",
-                        "Bloody", "Orange", "Ampeg", "Toxic"},
+                        "Bloody", "Orange", "Ampeg", "Toxic", "Cyberpunk",
+                        "Glacier", "Sahara"},
       0));
 
   p.push_back(std::make_unique<APB>("autoGain", "Auto Gain", false));
@@ -163,6 +164,16 @@ FunkyMooseAudioProcessor::createParams() {
       "monoMaker", "Mono Maker", juce::NormalisableRange<float>(20.0f, 400.0f),
       20.0f));
   p.push_back(std::make_unique<APB>("monoMakerOn", "Mono Maker On/Off", true));
+  
+  // MOJO (Advanced)
+  p.push_back(std::make_unique<APF>("mojoCrossover", "Mojo Crossover", 
+                                    juce::NormalisableRange<float>(80.0f, 400.0f, 1.0f, 0.5f), 180.0f));
+  p.push_back(std::make_unique<APF>("mojoClank", "Mojo Clank", 
+                                    juce::NormalisableRange<float>(800.0f, 4000.0f, 1.0f, 0.5f), 2400.0f));
+  p.push_back(std::make_unique<APF>("ampSag", "Sag", 
+                                    juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f, 1.0f), 40.0f));
+  p.push_back(std::make_unique<APF>("outThickness", "Thickness", 
+                                    juce::NormalisableRange<float>(0.0f, 100.0f, 1.0f, 1.0f), 20.0f));
 
   return {p.begin(), p.end()};
 }
@@ -224,6 +235,10 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   monoMakerOnParam = apvts.getRawParameterValue("monoMakerOn");
   autoGainParam = apvts.getRawParameterValue("autoGain");
   forceMonoInputParam = apvts.getRawParameterValue("forceMonoInput");
+  mojoCrossoverParam = apvts.getRawParameterValue("mojoCrossover");
+  mojoClankParam = apvts.getRawParameterValue("mojoClank");
+  ampSagParam = apvts.getRawParameterValue("ampSag");
+  outThicknessParam = apvts.getRawParameterValue("outThickness");
 
   dspChain.prepare(mState.spec);
 
@@ -326,69 +341,9 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
       if (handledByCustomMap)
         continue;
 
-      // AKAI MPK MINI MAPPING (User Config)
-      // K1-K8: CC 2-9
-      if (ccNum == 2) { // K1: Gain
-        if (auto *p = apvts.getParameter("ampGain"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 3) { // K2: Bass
-        if (auto *p = apvts.getParameter("ampBass"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 4) { // K3: Mid
-        if (auto *p = apvts.getParameter("ampMid"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 5) { // K4: Treble
-        if (auto *p = apvts.getParameter("ampTreble"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 6) { // K5: Amp Volume
-        if (auto *p = apvts.getParameter("ampVolume"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 7) { // K6: Octave Mix
-        if (auto *p = apvts.getParameter("octMix"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 8) { // K7: Envelope Range
-        if (auto *p = apvts.getParameter("envRange"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 9) { // K8: Phaser Mix
-        if (auto *p = apvts.getParameter("phMix"))
-          p->setValueNotifyingHost(ccVal);
-      }
-      // LEGACY / DAW MAPPING
-      else if (ccNum == 1) { // Modwheel
-        if (auto *p = apvts.getParameter("envRange"))
-          p->setValueNotifyingHost(ccVal);
-      } else if (ccNum == 74) { // Standard Filter Cutoff
-        if (auto *p = apvts.getParameter("phMix"))
-          p->setValueNotifyingHost(ccVal);
-      }
+      handleAkaiMpkMiniMapping(msg, ccNum, ccVal);
     } else if (msg.isNoteOn()) {
-      const int noteNum = msg.getNoteNumber();
-
-      // AKAI MPK MINI PAD MAPPING (Toggles)
-      // Top Row (44-47), Bottom Row (48-51)
-      auto toggleParam = [&](const juce::String &paramID) {
-        if (auto *p = apvts.getParameter(paramID)) {
-          float currentVal = p->getValue();
-          p->setValueNotifyingHost(currentVal > 0.5f ? 0.0f : 1.0f);
-        }
-      };
-
-      if (noteNum == 44)
-        toggleParam("ampOn");
-      else if (noteNum == 45)
-        toggleParam("octOn");
-      else if (noteNum == 46)
-        toggleParam("envOn");
-      else if (noteNum == 47)
-        toggleParam("phaserOn");
-      else if (noteNum == 48)
-        toggleParam("chorusOn");
-      else if (noteNum == 49)
-        toggleParam("compOn");
-      else if (noteNum == 50)
-        toggleParam("cabType"); // Cycle or toggle cab
-      else if (noteNum == 51)
-        toggleParam("bypass");
+      handleAkaiMpkMiniToggles(msg, msg.getNoteNumber());
     }
   }
 
@@ -495,14 +450,11 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     auto *R =
         (buffer.getNumChannels() > 1) ? buffer.getReadPointer(1) : nullptr;
 
-    // Same smart-gain logic for tuner to avoid "level trap"
-    float lMag = buffer.getMagnitude(0, 0, n);
-    float rMag =
-        (buffer.getNumChannels() > 1) ? buffer.getMagnitude(1, 0, n) : 0.0f;
-    float tunerSumGain = (lMag > 0.001f && rMag > 0.001f) ? 0.5f : 1.0f;
-
+    // Use a simpler approach: sum L and R. If both are active, we might need to 
+    // compensate gain, but usually for a tuner, raw level doesn't matter much 
+    // as long as it handles mono inputs correctly.
     for (int i = 0; i < n; ++i)
-      m[i] = (L[i] + (R ? R[i] : 0.0f)) * tunerSumGain;
+      m[i] = (L[i] + (R ? R[i] : 0.0f)) * 0.5f;
 
     tunerFifo.push(m, n);
   }
@@ -557,6 +509,11 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     amp.setAmpOn(ampOnParam->load() > 0.5f);
     amp.setTubeOn(tubeOnParam->load() > 0.5f);
     amp.setSlapOn(slapParam->load() > 0.5f);
+    
+    if (ampSagParam)
+        amp.setSagAmount(ampSagParam->load() / 100.0f * 0.4f); // 0.0 to 0.4 range
+
+    amp.setHarshDipEnabled(false);
     amp.setBassDb(ampBassParam->load());
     amp.setMidDb(ampMidParam->load());
     amp.setTrebleDb(ampTrebleParam->load());
@@ -623,10 +580,13 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
         (ampOnParam->load() > 0.5f) && (tubeOnParam->load() > 0.5f);
 
     dspChain.setBypassedAndReset<6>(!mojoTargetActive);
-
+    
     if (mojoTargetActive) {
       float g01 = (ampGainParam->load() + compInputParam->load()) / 24.0f;
       mojo.setMojoDrive01(juce::jlimit(0.0f, 1.0f, 0.20f + 0.80f * g01));
+      
+      if (mojoCrossoverParam) mojo.setCrossoverFreq(mojoCrossoverParam->load());
+      if (mojoClankParam) mojo.setClankFreq(mojoClankParam->load());
     }
   }
 
@@ -651,14 +611,19 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
 
     out.setMonoMakerFreq(monoMakerParam->load());
     out.setMonoMakerEnabled(monoMakerOnParam->load() > 0.5f);
+    if (outThicknessParam)
+        out.setThickness(1.0f + (outThicknessParam->load() / 100.0f) * 0.4f); // 1.0 to 1.4 range
   }
 
   // ===== PROCESS =====
   juce::dsp::AudioBlock<float> block(buffer);
   juce::dsp::ProcessContextReplacing<float> ctx(block);
 
-  // Capture Dry for Mix
-  dryBuffer.makeCopyOf(buffer, true);
+  // Capture Dry for Mix (only if needed)
+  const float mixVal = apvts.getRawParameterValue("masterMix")->load() / 100.0f;
+  if (mixVal < 0.995f) {
+    dryBuffer.makeCopyOf(buffer, true);
+  }
 
   // Central DSP Chain
   {
@@ -687,18 +652,14 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
   // Blending them effectively means "Dry" is unaffected by Master Volume.
   // This is acceptable behavior for "Mix".
 
-  float mixVal = apvts.getRawParameterValue("masterMix")->load() / 100.0f;
-  if (mixVal < 0.999f &&
+  if (mixVal < 0.995f &&
       dryBuffer.getNumChannels() >= buffer.getNumChannels()) {
     const float wetGain = std::sqrt(mixVal);
     const float dryGain = std::sqrt(1.0f - mixVal); // Equal power crossfade
 
     for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
-      auto *w = buffer.getWritePointer(ch);
-      auto *d = dryBuffer.getReadPointer(ch);
-      for (int i = 0; i < buffer.getNumSamples(); ++i) {
-        w[i] = w[i] * wetGain + d[i] * dryGain;
-      }
+      buffer.applyGain(ch, 0, buffer.getNumSamples(), wetGain);
+      buffer.addFrom(ch, 0, dryBuffer, ch, 0, buffer.getNumSamples(), dryGain);
     }
   }
 
@@ -746,6 +707,7 @@ juce::File FunkyMooseAudioProcessor::getPresetsFolder() {
 }
 
 void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
+  currentPresetName = presetName;
   for (auto &p : getParameters())
     if (auto *rp = dynamic_cast<juce::RangedAudioParameter *>(p))
       rp->setValueNotifyingHost(rp->getDefaultValue());
@@ -793,7 +755,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.07829456031322479f);
     setVal("phaserOn", 1.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f);
@@ -811,6 +772,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -848,7 +810,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.04015733301639557f);
     setVal("phaserOn", 1.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 2.0f);
@@ -866,6 +827,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -903,7 +865,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 0.0f);
@@ -921,6 +882,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -958,7 +920,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 1.0f);
@@ -976,6 +937,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1013,7 +975,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 1.0f);
@@ -1031,6 +992,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1068,7 +1030,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 2.0f);
@@ -1086,6 +1047,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1123,7 +1085,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f);
@@ -1141,6 +1102,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1178,7 +1140,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 1.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f);
@@ -1196,6 +1157,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 82.07083129882812f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1233,7 +1195,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 2.0f);
@@ -1251,6 +1212,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1288,7 +1250,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.449999988079071f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 2.0f);
@@ -1306,6 +1267,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1343,7 +1305,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.03673106804490089f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f);
@@ -1361,6 +1322,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1398,7 +1360,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.02098705992102623f);
     setVal("phaserOn", 1.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 1.0f);
     setVal("cabType", 1.0f);
@@ -1416,6 +1377,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1453,7 +1415,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 1.0f);
     setVal("phaserOn", 1.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f);
@@ -1471,6 +1432,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1508,7 +1470,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.03673106804490089f);
     setVal("phaserOn", 1.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 0.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f);
@@ -1526,6 +1487,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1563,7 +1525,6 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("phRate", 0.45f);
     setVal("phaserOn", 0.0f);
     setVal("slap", 0.0f);
-    setVal("skin", 0.0f);
     setVal("punch", 1.0f);
     setVal("tubeOn", 0.0f);
     setVal("cabType", 1.0f); // 4x10 ON by default
@@ -1581,6 +1542,7 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     setVal("gateHoldMs", 90.0f);
     setVal("gateThresh", -66.30000305175781f);
     setVal("irMix", 100.0f);
+    setVal("skin", 0.0f);
     return;
   }
 
@@ -1619,6 +1581,7 @@ juce::StringArray FunkyMooseAudioProcessor::getPresetList() {
 }
 
 void FunkyMooseAudioProcessor::savePreset(const juce::String &presetName) {
+  currentPresetName = presetName;
   auto file = getPresetsFolder().getChildFile(presetName + ".xml");
   auto state = apvts.copyState();
   state.setProperty("version", projectVersion, nullptr);
@@ -1643,10 +1606,11 @@ int FunkyMooseAudioProcessor::findParameterIndexByID(
 }
 
 void FunkyMooseAudioProcessor::handleAsyncUpdate() {
-  if (!midiMapDirty.exchange(false))
-    return;
+  if (midiMapDirty.exchange(false))
+    saveMidiMap();
 
-  saveMidiMap();
+  if (latencyDirty.exchange(false))
+    updateLatency();
 }
 
 void FunkyMooseAudioProcessor::parameterChanged(const juce::String &parameterID,
@@ -1658,6 +1622,13 @@ void FunkyMooseAudioProcessor::parameterChanged(const juce::String &parameterID,
   if (isMidiLearnActive.exchange(false)) {
     const int idx = findParameterIndexByID(parameterID);
     learningParamIndex.store(idx);
+  }
+
+  // Latency changes if Mojo or other modules with latency toggle
+  if (parameterID == "ampOn" || parameterID == "tubeOn" ||
+      parameterID == "octOn" || parameterID == "envOn") {
+    latencyDirty.store(true);
+    triggerAsyncUpdate();
   }
 }
 
@@ -1714,5 +1685,86 @@ void FunkyMooseAudioProcessor::loadMidiMap() {
         }
       }
     }
+  }
+}
+
+void FunkyMooseAudioProcessor::handleAkaiMpkMiniMapping(
+    const juce::MidiMessage &msg, int ccNum, float ccVal) {
+  // AKAI MPK MINI MAPPING (User Config)
+  // K1-K8: CC 2-9
+  if (ccNum == 2) { // K1: Gain
+    if (auto *p = apvts.getParameter("ampGain"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 3) { // K2: Bass
+    if (auto *p = apvts.getParameter("ampBass"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 4) { // K3: Mid
+    if (auto *p = apvts.getParameter("ampMid"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 5) { // K4: Treble
+    if (auto *p = apvts.getParameter("ampTreble"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 6) { // K5: Amp Volume
+    if (auto *p = apvts.getParameter("ampVolume"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 7) { // K6: Octave Mix
+    if (auto *p = apvts.getParameter("octMix"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 8) { // K7: Envelope Range
+    if (auto *p = apvts.getParameter("envRange"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 9) { // K8: Phaser Mix
+    if (auto *p = apvts.getParameter("phMix"))
+      p->setValueNotifyingHost(ccVal);
+  }
+  // LEGACY / DAW MAPPING
+  else if (ccNum == 1) { // Modwheel
+    if (auto *p = apvts.getParameter("envRange"))
+      p->setValueNotifyingHost(ccVal);
+  } else if (ccNum == 74) { // Standard Filter Cutoff
+    if (auto *p = apvts.getParameter("phMix"))
+      p->setValueNotifyingHost(ccVal);
+  }
+}
+
+void FunkyMooseAudioProcessor::handleAkaiMpkMiniToggles(
+    const juce::MidiMessage &msg, int noteNum) {
+  // AKAI MPK MINI PAD MAPPING (Toggles)
+  // Top Row (44-47), Bottom Row (48-51)
+  auto toggleParam = [&](const juce::String &paramID) {
+    if (auto *p = apvts.getParameter(paramID)) {
+      float currentVal = p->getValue();
+      p->setValueNotifyingHost(currentVal > 0.5f ? 0.0f : 1.0f);
+    }
+  };
+
+  if (noteNum == 44)
+    toggleParam("ampOn");
+  else if (noteNum == 45)
+    toggleParam("octOn");
+  else if (noteNum == 46)
+    toggleParam("envOn");
+  else if (noteNum == 47)
+    toggleParam("phaserOn");
+  else if (noteNum == 48)
+    toggleParam("chorusOn");
+  else if (noteNum == 49)
+    toggleParam("compOn");
+  else if (noteNum == 50) {
+    if (auto *p = apvts.getParameter("cabType")) {
+      float v = p->getValue();
+      v += 0.334f;
+      if (v > 1.0f)
+        v = 0.0f;
+      p->setValueNotifyingHost(v);
+    }
+  } else if (noteNum == 51)
+    toggleParam("bypass");
+}
+
+void FunkyMooseAudioProcessor::updateLatency() {
+  int samples = (int)std::round(dspChain.getLatency());
+  if (samples != getLatencySamples()) {
+    setLatencySamples(samples);
   }
 }

@@ -31,7 +31,7 @@ public:
   }
 
   void setSagAmount(float amount) noexcept {
-    sagAmount = juce::jlimit(0.05f, 0.12f, amount);
+    sagAmount = juce::jlimit(0.0f, 0.5f, amount);
   }
 
   void reset() noexcept { globalEnv = 0.0f; }
@@ -48,9 +48,8 @@ public:
     float blockPeak = 0.0f;
     for (size_t ch = 0; ch < numCh; ++ch) {
       auto *data = block.getChannelPointer(ch);
-      for (size_t i = 0; i < numSamples; ++i) {
-        blockPeak = std::max(blockPeak, std::abs(data[i]));
-      }
+      float channelPeak = juce::FloatVectorOperations::findMaximum(data, (int)numSamples);
+      blockPeak = std::max(blockPeak, channelPeak);
     }
 
     // Smooth global envelope
@@ -61,7 +60,8 @@ public:
     }
 
     float gainReduction = 1.0f - (globalEnv * sagAmount);
-    gainReduction = juce::jlimit(0.85f, 1.0f, gainReduction);
+    // Allow more extreme sag (up to 50% reduction) for audibility
+    gainReduction = juce::jlimit(0.50f, 1.0f, gainReduction);
 
     for (size_t ch = 0; ch < numCh; ++ch) {
       float *d = block.getChannelPointer(ch);

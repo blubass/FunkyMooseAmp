@@ -11,13 +11,16 @@
 // CMake JUCE project: no <JuceHeader.h>. Use JuceIncludes.h.
 
 class FunkyMooseAudioProcessorEditor : public juce::AudioProcessorEditor,
-                                       private juce::Timer {
+                                       private juce::Timer,
+                                       public juce::AudioProcessorValueTreeState::Listener {
 public:
   explicit FunkyMooseAudioProcessorEditor(FunkyMooseAudioProcessor &);
   ~FunkyMooseAudioProcessorEditor() override;
 
   void paint(juce::Graphics &) override;
   void resized() override;
+
+  void parameterChanged(const juce::String &parameterID, float newValue) override;
 
 private:
   struct HoverKnob : public juce::Slider {
@@ -399,6 +402,8 @@ private:
                        juce::Slider::NoTextBox};
   HoverKnob volumeKnob{juce::Slider::RotaryHorizontalVerticalDrag,
                        juce::Slider::NoTextBox};
+  HoverKnob sagKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                    juce::Slider::NoTextBox};
 
   juce::ToggleButton slapToggle;
   juce::ToggleButton tubeToggle;
@@ -484,8 +489,18 @@ private:
                           juce::Slider::NoTextBox}; // New
   HoverKnob irMixKnob{juce::Slider::RotaryHorizontalVerticalDrag,
                       juce::Slider::NoTextBox}; // New
+  HoverKnob thicknessKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                          juce::Slider::NoTextBox}; // NewSaturation
+
+  // Mojo Advanced
+  HoverKnob mojoLoKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                       juce::Slider::NoTextBox};
+  HoverKnob mojoHiKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                       juce::Slider::NoTextBox};
+
   juce::ToggleButton autoGainToggle{"AUTO"};    // New
   juce::ToggleButton monoMakerToggle;
+  juce::TextButton skinButton{"Skins"};
   juce::TextButton cabButton{"OFF"};
 
   juce::ToggleButton tunerToggle, monoInputButton;
@@ -523,9 +538,17 @@ private:
   std::unique_ptr<ButtonAttachment> chOnAtt, fxParallelAtt; // Added Parallel
   std::unique_ptr<SliderAttachment> chRateAtt, chDepthAtt, chMixAtt;
 
-  std::unique_ptr<SliderAttachment> outAtt, mixAtt, monoMakerAtt, irMixAtt;
+  std::unique_ptr<SliderAttachment>      outAtt,
+      mixAtt,
+      monoMakerAtt,
+      irMixAtt,
+      mojoLoAttach,
+      mojoHiAttach,
+      ampSagAtt,
+      thicknessAtt;
   std::unique_ptr<ButtonAttachment> autoGainAtt, monoMakerOnAtt, masterOnAtt,
       autoGateAtt;
+  std::unique_ptr<ButtonAttachment> skinAttachment;
   std::unique_ptr<ButtonAttachment> ampAutoGainAtt, compAutoMakeupAtt,
       tunerAttachment, monoInputAtt;
 

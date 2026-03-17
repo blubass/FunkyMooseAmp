@@ -43,6 +43,8 @@ public:
       fizzTamer[i].setCutoffFrequency(3200.0f);
     }
 
+    lastLoFreq = 180.0f;
+    lastClankFreq = 2400.0f;
     prepared = true;
   }
 
@@ -61,6 +63,14 @@ public:
     mojoDrive01.setTargetValue(juce::jlimit(0.0f, 1.0f, d01));
   }
 
+  void setCrossoverFreq(float freq) {
+    targetLoFreq = juce::jlimit(80.0f, 400.0f, freq);
+  }
+
+  void setClankFreq(float freq) {
+    targetClankFreq = juce::jlimit(800.0f, 4000.0f, freq);
+  }
+
   void process(const juce::dsp::ProcessContextReplacing<float> &ctx) {
     if (!prepared || mojoOS == nullptr)
       return;
@@ -73,10 +83,34 @@ public:
     const size_t numSamples = osBlock.getNumSamples();
     const size_t numCh = osBlock.getNumChannels();
 
+    // 1. Dynamic tuning update (only if changed significantly)
+    if (std::abs(targetLoFreq - lastLoFreq) > 1.0f || std::abs(targetClankFreq - lastClankFreq) > 1.0f) {
+      for (int i = 0; i < 2; ++i) {
+        lpCrossover[i].setCutoffFrequency(targetLoFreq);
+        hpCrossover[i].setCutoffFrequency(targetLoFreq);
+        clankPeak[i].setCutoffFrequency(targetClankFreq);
+      }
+      lastLoFreq = targetLoFreq;
+      lastClankFreq = targetClankFreq;
+    }
+
+    auto fastAtan = [](float x) {
+      // Rational approximation for atan(x)
+      float x2 = x * x;
+      return x * (1.0f + 0.28086f * x2) / (1.0f + 0.614447f * x2 + 0.03029f * x2 * x2);
+      // Alternative even faster: x / (1.0f + 0.28f * std::abs(x)) -- different curve though
+    };
+
     for (size_t n = 0; n < numSamples; ++n) {
       const float currentDrive = mojoDrive01.getNextValue();
 
       if (currentDrive > 0.001f) {
+        // Pre-calculate drive-dependent constants to save cycles in channel loop
+        const float driveExp = 1.0f + (5.0f * currentDrive);
+        const float bias = 0.02f * currentDrive;
+        const float atanBias = std::atan(bias); // std::atan here is fine, it's outside channel loop
+        const float outGainComp = (1.0f + (0.3f * currentDrive));
+
         for (size_t ch = 0; ch < numCh; ++ch) {
           float *x = osBlock.getChannelPointer(ch);
           auto &lpF = lpCrossover[ch < 2 ? ch : 0];
@@ -94,16 +128,14 @@ public:
           // Pre-Filter
           high = preF.processSample(0, high);
 
-          // Shaper loop (simplified for stability)
-          const float driveExp = 1.0f + (5.0f * currentDrive);
+          // Shaper loop (Asymmetric Saturation) using fast atan
           float hb = high * driveExp;
-
-          const float bias = 0.02f * currentDrive;
-          float shaper = std::atan(hb + bias) - std::atan(bias);
+          float shaper = fastAtan(hb + bias) - atanBias;
+          
           if (!std::isfinite(shaper))
             shaper = 0.0f;
 
-          shaper *= (1.0f + (0.3f * currentDrive));
+          shaper *= outGainComp;
           high = postF.processSample(0, shaper);
 
           // Blend with gain compensation (prevent volume jump)
@@ -124,7 +156,11 @@ public:
         float s = ptr[i];
         if (!std::isfinite(s))
           s = 0.0f;
-        ptr[i] = std::tanh(s);
+        
+        // Fast tanh approximation for safety clip
+        if (s <= -3.0f) ptr[i] = -1.0f;
+        else if (s >= 3.0f) ptr[i] = 1.0f;
+        else ptr[i] = s * (27.0f + s * s) / (27.0f + 9.0f * s * s);
       }
     }
   }
@@ -143,6 +179,11 @@ private:
   juce::dsp::StateVariableTPTFilter<float> hpCrossover[2];
   juce::dsp::StateVariableTPTFilter<float> clankPeak[2];
   juce::dsp::StateVariableTPTFilter<float> fizzTamer[2];
+
+  float targetLoFreq = 180.0f;
+  float lastLoFreq = 180.0f;
+  float targetClankFreq = 2400.0f;
+  float lastClankFreq = 2400.0f;
 
   bool prepared{false};
 };

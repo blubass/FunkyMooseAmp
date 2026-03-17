@@ -59,6 +59,10 @@ public:
   void setCabType(int t) noexcept { type = t; }
   void setMix(float m) noexcept { mixer.setWetMixProportion(m); }
 
+  float getLatencySamples() const noexcept {
+    return (type == CustomIR) ? (float)convolver.getLatency() : 0.0f;
+  }
+
   void process(const juce::dsp::ProcessContextReplacing<float> &ctx) {
     if (type <= Bypass || type > CustomIR)
       return;
@@ -73,7 +77,7 @@ public:
         convolver.process(ctx);
         // Boost IR signal: standard normalization often leaves IRs at -12dB or
         // lower. We boost by 6dB to bring it closer to the dry signal level.
-        ctx.getOutputBlock().multiplyBy(juce::Decibels::decibelsToGain(6.0f));
+        ctx.getOutputBlock().multiplyBy(1.99526231f); // 6dB
       }
     } else {
       updateFilters(type);

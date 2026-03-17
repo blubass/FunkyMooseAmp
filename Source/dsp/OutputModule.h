@@ -55,6 +55,7 @@ public:
   void setAutoGain(bool enabled) noexcept { autoGainEnabled = enabled; }
   void setGainDecibels(float db) noexcept { outDb = db; }
   void setSafetyClipThreshold(float th) noexcept { safetyClipThreshold = th; }
+  void setThickness(float amount) noexcept { thickness = juce::jlimit(1.0f, 1.4f, amount); }
   void resetAutoGainComp() noexcept { autoGainComp = 1.0f; }
 
   // Thread-safe access for UI
@@ -121,19 +122,14 @@ public:
     float outSum = 0.0f;
 
     // --- GLOBAL OUTPUT SOFT CLIPPER ("Dicker Bass" Fix) ---
-    // This adds subtle harmonic saturation even at low levels and rounds off
-    // transients.
     for (int ch = 0; ch < chs; ++ch) {
       auto *x = buffer.getChannelPointer(ch);
       for (int i = 0; i < n; ++i) {
         const float vPre = x[i];
         inSum += vPre * vPre;
 
-        // Subtle Soft Clipping: sample / (1.0 + abs(sample))
-        // We add a tiny 'drive' to push it into the saturation zone for that
-        // 'thick' feel
-        float drive = 1.08f;
-        float v = vPre * drive;
+        // Soft Clipping with tunable drive (Thickness)
+        float v = vPre * thickness;
         v = v / (1.0f + std::abs(v));
 
         x[i] = v;
@@ -167,6 +163,7 @@ private:
   float outRmsSmooth{0.0f};
 
   float outDb = 0.0f;
+  float thickness = 1.08f;
   float safetyClipThreshold = 1.0f;
   std::atomic<float> inRmsAtomic{0.0f};
   std::atomic<float> outRmsAtomic{0.0f};

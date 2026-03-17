@@ -12,7 +12,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
     : juce::AudioProcessorEditor(&p), processor(p), inVu(*this), outVu(*this),
       compGr(*this) {
   // 1. Initialize Palette and LookAndFeel FIRST
-  const int skinIndex = 0;
+  const int skinIndex = (int)p.apvts.getRawParameterValue("skin")->load();
   currentPalette = Skins::getPalette(skinIndex);
   setLookAndFeel(&lookAndFeel);
   lookAndFeel.setColors(currentPalette.accent, currentPalette.knob,
@@ -76,7 +76,8 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
                   &oct2Knob,     &octMixKnob,   &envAtkKnob,     &envDecKnob,
                   &envRangeKnob, &phRateKnob,   &phColKnob,      &phMixKnob,
                   &chRateKnob,   &chDepthKnob,  &chMixKnob,      &outKnob,
-                  &mixKnob,      &monoMakerKnob}) {
+                  &mixKnob,      &monoMakerKnob, &mojoLoKnob,    &mojoHiKnob,
+                  &sagKnob,      &thicknessKnob}) {
     content.addAndMakeVisible(*k);
 
     // Init Logic (Inline) + POPUP ENABLED
@@ -97,7 +98,10 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
       s->setComponentID(id);
   };
 
-  setGroup({&gainKnob, &bassKnob, &midKnob, &trebleKnob, &volumeKnob}, "AMP");
+  setGroup({&gainKnob, &bassKnob, &midKnob, &trebleKnob, &volumeKnob, &sagKnob}, "AMP");
+  setGroup({&outKnob, &mixKnob, &monoMakerKnob, &thicknessKnob}, "MASTER");
+  setGroup({&outKnob, &mixKnob, &monoMakerKnob, &thicknessKnob}, "MASTER");
+  setGroup({&mojoLoKnob, &mojoHiKnob}, "FX"); // Using FX color for Mojo tuning
   setGroup({&compInKnob, &compThreshKnob, &compMakeKnob, &compAtkKnob,
             &compRelKnob, &compMixKnob},
            "COMP");
@@ -199,7 +203,8 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
           &oct2Knob,      &octMixKnob,  &envAtkKnob,     &envDecKnob,
           &envRangeKnob,  &phRateKnob,  &phColKnob,      &phMixKnob,
           &chRateKnob,    &chDepthKnob, &chMixKnob,      &outKnob,
-          &monoMakerKnob, &irMixKnob}) {
+          &monoMakerKnob, &irMixKnob,   &mojoLoKnob,     &mojoHiKnob,
+          &sagKnob,       &thicknessKnob}) {
       k->setPopupDisplayEnabled(show, show, this);
     }
   };
@@ -243,6 +248,39 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   tunerOverlay = std::make_unique<TunerComponent>(processor.getTunerFifo(),
                                                   processor.getTunerFlag());
+
+  // --- SKIN SELECTOR (Genau wie Preset Menü) ---
+  int currentSkin = (int)processor.apvts.getRawParameterValue("skin")->load();
+  auto skinNames = processor.apvts.getParameter("skin")->getAllValueStrings();
+  skinButton.setButtonText("Skin: " + skinNames[currentSkin]); 
+  content.addAndMakeVisible(skinButton);
+  skinButton.setName("tooltipToggle"); // Same sleek black style
+  skinButton.onClick = [this, skinNames] {
+      juce::PopupMenu m;
+      auto* p = processor.apvts.getParameter("skin");
+      int current = (int)processor.apvts.getRawParameterValue("skin")->load();
+      
+      for (int i = 0; i < skinNames.size(); ++i) {
+          m.addItem(i + 1, skinNames[i], true, i == current);
+      }
+      
+      m.showMenuAsync(juce::PopupMenu::Options().withTargetComponent(&skinButton),
+          [this, skinNames, p](int result) {
+              if (result == 0) return;
+              int idx = result - 1;
+              p->beginChangeGesture();
+              p->setValueNotifyingHost(p->getNormalisableRange().convertTo0to1((float)idx));
+              p->endChangeGesture();
+              
+              skinButton.setButtonText("Skin: " + skinNames[idx]);
+              ensureCachedTextures(idx);
+              currentPalette = Skins::getPalette(idx);
+              updateStaticBackground();
+              updateGlowCaches();
+              repaint();
+          });
+  };
+
   tunerOverlay->prepare(processor.getSampleRate());
   content.addChildComponent(*tunerOverlay);
 
@@ -349,24 +387,51 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   };
 
   savePresetButton.onClick = [this] {
-    auto *aw = new juce::AlertWindow(
-        "Save Preset",
-        "Enter a name for your preset:", juce::AlertWindow::NoIcon);
-    aw->addTextEditor("name", "New Preset", "");
-    aw->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
-    aw->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+    juce::String current = processor.currentPresetName;
+    bool isUser = false;
+    if (current.isNotEmpty()) {
+      auto file = processor.getPresetsFolder().getChildFile(current + ".xml");
+      if (file.existsAsFile())
+        isUser = true;
+    }
 
-    aw->enterModalState(
-        true, juce::ModalCallbackFunction::create([this, aw](int result) {
-          if (result == 1) {
-            juce::String name = aw->getTextEditorContents("name");
-            if (name.isNotEmpty()) {
-              processor.savePreset(name);
-              presetSelector.setButtonText(name);
+    auto showSaveAs = [this](juce::String suggestedName) {
+      auto *aw = new juce::AlertWindow(
+          "Save Preset", "Enter a name for your preset:", juce::AlertWindow::NoIcon);
+      aw->addTextEditor("name", suggestedName, "");
+      aw->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+      aw->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+
+      aw->enterModalState(
+          true, juce::ModalCallbackFunction::create([this, aw](int result) {
+            if (result == 1) {
+              juce::String name = aw->getTextEditorContents("name");
+              if (name.isNotEmpty()) {
+                processor.savePreset(name);
+                presetSelector.setButtonText(name);
+              }
             }
-          }
-          delete aw;
-        }));
+            delete aw;
+          }));
+    };
+
+    if (isUser) {
+      juce::PopupMenu m;
+      m.addItem(1, "Overwrite '" + current + "'");
+      m.addItem(2, "Save As...");
+
+      m.showMenuAsync(
+          juce::PopupMenu::Options().withTargetComponent(savePresetButton),
+          [this, current, showSaveAs](int result) {
+            if (result == 1) {
+              processor.savePreset(current);
+            } else if (result == 2) {
+              showSaveAs(current);
+            }
+          });
+    } else {
+      showSaveAs(current.isNotEmpty() ? current : "New Preset");
+    }
   };
 
   openFolderButton.onClick = [this] {
@@ -438,6 +503,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   trebleAtt = std::make_unique<SA>(ts, "ampTreble", trebleKnob);
   volAtt = std::make_unique<SA>(ts, "ampVolume", volumeKnob);
   ampAutoGainAtt = std::make_unique<BA>(ts, "ampAutoGain", ampAutoGainToggle);
+  ampSagAtt = std::make_unique<SA>(ts, "ampSag", sagKnob);
 
   // Comp
   compOnAtt = std::make_unique<BA>(ts, "compOn", compOn);
@@ -448,6 +514,12 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   compAtkAtt = std::make_unique<SA>(ts, "compAttack", compAtkKnob);
   compRelAtt = std::make_unique<SA>(ts, "compRelease", compRelKnob);
   compMixAtt = std::make_unique<SA>(ts, "compMix", compMixKnob);
+  mojoLoAttach =
+      std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+          processor.apvts, "mojoCrossover", mojoLoKnob);
+  mojoHiAttach =
+      std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+          processor.apvts, "mojoClank", mojoHiKnob);
   compAutoMakeupAtt =
       std::make_unique<BA>(ts, "compAutoMakeup", compAutoMakeupToggle);
   tunerAttachment = std::make_unique<BA>(ts, "tunerOn", tunerToggle);
@@ -489,8 +561,9 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   outAtt = std::make_unique<SA>(ts, "masterOut", outKnob);
   mixAtt = std::make_unique<SA>(ts, "masterMix", mixKnob);
   monoMakerAtt = std::make_unique<SA>(ts, "monoMaker", monoMakerKnob);
-  autoGainAtt = std::make_unique<BA>(ts, "autoGain", autoGainToggle);
   monoMakerOnAtt = std::make_unique<BA>(ts, "monoMakerOn", monoMakerToggle);
+  thicknessAtt = std::make_unique<SA>(ts, "outThickness", thicknessKnob);
+  autoGainAtt = std::make_unique<BA>(ts, "autoGain", autoGainToggle);
   fxParallelAtt = std::make_unique<BA>(ts, "fxParallel", fxParallelToggle);
   irMixAtt = std::make_unique<SA>(ts, "irMix", irMixKnob);
   monoInputAtt = std::make_unique<BA>(ts, "forceMonoInput", monoInputButton);
@@ -502,7 +575,8 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
                   &oct2Knob,     &octMixKnob,    &envAtkKnob,     &envDecKnob,
                   &envRangeKnob, &phRateKnob,    &phColKnob,      &phMixKnob,
                   &chRateKnob,   &chDepthKnob,   &chMixKnob,      &outKnob,
-                  &mixKnob,      &monoMakerKnob, &irMixKnob}) {
+                  &mixKnob,      &monoMakerKnob, &irMixKnob,      &mojoLoKnob,
+                  &mojoHiKnob,   &sagKnob,       &thicknessKnob}) {
     k->textFromValueFunction = [](double value) {
       return juce::String(value, 1);
     };
@@ -517,11 +591,37 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   setSize(designW / 2, designH / 2); // Default: half of design size
 
   startTimerHz(30);
+  processor.apvts.addParameterListener("skin", this);
 }
 
 FunkyMooseAudioProcessorEditor::~FunkyMooseAudioProcessorEditor() {
+  processor.apvts.removeParameterListener("skin", this);
   stopTimer();
   setLookAndFeel(nullptr);
+}
+void FunkyMooseAudioProcessorEditor::parameterChanged(const juce::String &parameterID, float newValue) {
+    if (parameterID == "skin") {
+        // Use callAsync because this is called from the audio thread
+        juce::MessageManager::callAsync([this] {
+            auto* p = processor.apvts.getParameter("skin");
+            int idx = (int)processor.apvts.getRawParameterValue("skin")->load();
+            auto skinNames = p->getAllValueStrings();
+            
+            if (idx >= 0 && idx < skinNames.size()) {
+                skinButton.setButtonText("Skin: " + skinNames[idx]);
+                ensureCachedTextures(idx);
+                currentPalette = Skins::getPalette(idx);
+                
+                // Update LookAndFeel as well
+                lookAndFeel.setColors(currentPalette.accent, currentPalette.knob, currentPalette.knobIndicator);
+                elch.setColors(currentPalette.elchEye, currentPalette.elchGlow);
+                
+                updateStaticBackground();
+                updateGlowCaches();
+                repaint();
+            }
+        });
+    }
 }
 
 struct FunkyMooseAudioProcessorEditor::LayoutRects {
@@ -601,8 +701,8 @@ void FunkyMooseAudioProcessorEditor::ensureCachedTextures(int skinIndex) {
     }
   } // Close the cachedPlateTexture block
 
-  // Skin overlays (procedural) - only generate for the special skins
-  if (skinIndex == 4 || skinIndex == 5) {
+  // Skin overlays (procedural)
+  if (skinIndex == 4 || skinIndex == 5 || skinIndex == 9 || skinIndex == 10 || skinIndex == 11) {
     if (cachedSkinOverlay.isNull() || cachedSkinOverlay.getWidth() != designW ||
         cachedSkinOverlay.getHeight() != designH ||
         cachedSkinIndex != skinIndex) {
@@ -666,6 +766,40 @@ void FunkyMooseAudioProcessorEditor::ensureCachedTextures(int skinIndex) {
                            dripW);
           }
         }
+      } else if (skinIndex == 9) { // Cyberpunk (Grid + Circuit)
+          juce::Random r(777);
+          ig.setColour(juce::Colour(0xff00ffff).withAlpha(0.05f));
+          for (int x = 0; x < designW; x += 40) ig.drawVerticalLine(x, 0.0f, (float)designH);
+          for (int y = 0; y < designH; y += 40) ig.drawHorizontalLine(y, 0.0f, (float)designW);
+          
+          ig.setColour(juce::Colour(0xffff00ff).withAlpha(0.1f));
+          for(int i=0; i<15; ++i) {
+              float x = r.nextFloat() * designW;
+              float y = r.nextFloat() * designH;
+              ig.drawRect(x, y, r.nextFloat()*100+20, 2.0f);
+              ig.drawRect(x, y, 2.0f, r.nextFloat()*100+20);
+          }
+      } else if (skinIndex == 10) { // Ice (Crystal/Frost)
+          juce::Random r(1010);
+          ig.setColour(juce::Colours::white.withAlpha(0.2f));
+          for(int i=0; i<200; ++i) {
+              float x = r.nextFloat() * designW;
+              float y = r.nextFloat() * designH;
+              float size = r.nextFloat() * 12.0f;
+              ig.fillEllipse(x, y, size, size);
+          }
+          ig.setColour(juce::Colours::cyan.withAlpha(0.15f));
+          ig.drawRect(juce::Rectangle<int>(0, 0, designW, designH), 40.0f); 
+      } else if (skinIndex == 11) { // Sahara (Sand/Rust)
+          juce::Random r(999);
+          ig.setColour(juce::Colour(0xff3e2723).withAlpha(0.15f));
+          for (int i = 0; i < 3000; ++i) {
+              ig.fillRect((int)(r.nextFloat() * designW), (int)(r.nextFloat() * designH), 1, 1);
+          }
+          ig.setColour(juce::Colour(0xff795548).withAlpha(0.1f));
+          for (int i = 0; i < 40; ++i) {
+              ig.fillEllipse(r.nextFloat()*designW, r.nextFloat()*designH, r.nextFloat()*120+60, r.nextFloat()*40+10);
+          }
       }
       cachedSkinIndex = skinIndex;
     }
@@ -1329,6 +1463,8 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
     drawLabel(g, titleArea, "MASTER OUT", 17.0f, juce::Justification::centred);
   }
 
+
+
   // --- TOP ROW / STATS ---
   // ELCH Title - Larger, thicker, more 3D
   drawLabel(g,
@@ -1356,6 +1492,14 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   labelUnder(midKnob, "MID");
   labelUnder(trebleKnob, "TREBLE");
   labelUnder(volumeKnob, "VOLUME");
+  
+  // SAG Label: Directly below the knob
+  {
+      auto b = sagKnob.getBounds().toFloat();
+      g.setColour(juce::Colour(0xffcfc5b0));
+      drawLabel(g, {b.getX() - 10.0f, b.getBottom() + 1.0f, b.getWidth() + 20.0f, 18.0f},
+                "SAG", 13.0f, juce::Justification::centredTop);
+  }
 
   // SLAP label
   {
@@ -1446,6 +1590,16 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
               "MONO MAKER", 14.5f, juce::Justification::centredTop);
   }
 
+  // THICKNESS label
+  {
+    auto bK = thicknessKnob.getBounds().toFloat();
+    g.setColour(currentPalette.labelText.withAlpha(0.7f));
+    drawLabel(g,
+              {bK.getX() - 20.0f, bK.getBottom() - 1.0f, bK.getWidth() + 40.0f,
+               20.0f},
+              "THICKNESS", 14.5f, juce::Justification::centredTop);
+  }
+
   // Labels for sub-toggles (Modern/Parallel/Auto)
   auto labelSubToggle = [&](juce::ToggleButton &t, const juce::String &txt) {
     auto b = t.getBounds().toFloat();
@@ -1509,6 +1663,17 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
         g,
         {b.getX() - 20.0f, b.getBottom() - 1.0f, b.getWidth() + 40.0f, 20.0f},
         "IR MIX", 14.5f, juce::Justification::centredTop);
+  }
+
+  // Mojo Labels (Harmonized with IR MIX style)
+  for (auto *k : {&mojoLoKnob, &mojoHiKnob}) {
+    auto b = k->getBounds().toFloat();
+    bool isHi = (k == &mojoHiKnob);
+    g.setColour(currentPalette.labelText.withAlpha(0.7f));
+    drawLabel(g,
+              {b.getX() - 20.0f, b.getBottom() - 1.0f, b.getWidth() + 40.0f,
+               20.0f},
+              isHi ? "MOJO HI" : "MOJO LO", 14.5f, juce::Justification::centredTop);
   }
 
   // FX parameter labels
@@ -2126,10 +2291,15 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   midiLearnBtn.setBounds(monoInputButton.getX() - 120, (int)(topY - 3.0f), 110,
                          (int)boxH);
 
-  // MIDI Indicator (Left of Midi Learn)
+  // MIDI Indicator (Genau wie Preset Menü daneben)
   midiIndicator.setBounds(midiLearnBtn.getX() - 36, (int)(topY - 3.0f), 32,
                           (int)boxH);
 
+  // Skin Selector (Directly adjacent to MIDI Indicator)
+  // Wider for readability, and placed exactly to the left
+  skinButton.setBounds(midiIndicator.getX() - 170, (int)(topY - 3.0f), 165,
+                       (int)boxH);
+  
   // Ensure visibility
   presetSelector.toFront(false);
   savePresetButton.toFront(false);
@@ -2137,7 +2307,8 @@ void FunkyMooseAudioProcessorEditor::layoutContent() {
   toggleTooltips.toFront(false);
   statsHUD.toFront(false);
   midiLearnBtn.toFront(false);
-  midiIndicator.toFront(false); // MUST be in front of the overlayComp
+  skinButton.toFront(false);
+  midiIndicator.toFront(false); 
   monoInputButton.toFront(false);
 
   // LOGO
@@ -2257,10 +2428,11 @@ void FunkyMooseAudioProcessorEditor::layoutAmp(
   float x0 = row.getX() + k / 2.0f;
   float step = k + G;
 
-  float gap1 = x0 + step * 0.5f;
-  float gap2 = x0 + step * 1.5f;
-  float gap3 = x0 + step * 2.5f;
-  float gap4 = x0 + step * 3.5f; // Where old Auto-Gain was
+  float gap0 = x0;               // Far left (under Gain)
+  float gap1 = x0 + step * 0.8f; // Shifted right for Sag
+  float gap2 = x0 + step * 1.6f;
+  float gap3 = x0 + step * 2.6f;
+  float gap4 = x0 + step * 3.6f; // Gate
 
   lowCutToggle.setBounds((int)(gap1 - swW / 2.0f), (int)swY, (int)swW,
                          (int)swH);
@@ -2268,6 +2440,11 @@ void FunkyMooseAudioProcessorEditor::layoutAmp(
   slapToggle.setBounds((int)(gap3 - swW / 2.0f), (int)swY, (int)swW, (int)swH);
   autoGateToggle.setBounds((int)(gap4 - swW / 2.0f), (int)swY, (int)swW,
                            (int)swH);
+
+  // Position Sag Knob far left
+  const float sagSize = 58.0f;
+  sagKnob.setBounds((int)(gap0 - sagSize / 2.0f), (int)(swY - 21.0f),
+                     (int)sagSize, (int)sagSize);
 }
 
 void FunkyMooseAudioProcessorEditor::layoutComp(
@@ -2426,34 +2603,50 @@ void FunkyMooseAudioProcessorEditor::layoutMaster(
   auto c = r.getCentre();
   c.y -= 15.0f; // Shift UP safely: -15 preserves room for title
 
+  // Global shift to the left to clear the right side (ON/OFF toggle area)
+  const float L_SHIFT = -45.0f;
+
   // Master Knob (Big)
   outKnob.setBounds(
-      juce::Rectangle<float>(c.x - 58.0f, c.y - 65.0f, 116.0f, 116.0f)
+      juce::Rectangle<float>(c.x - 58.0f + L_SHIFT, c.y - 65.0f, 116.0f, 116.0f)
           .toNearestInt());
 
   // Mix (Left of Master)
   mixKnob.setBounds(
-      juce::Rectangle<float>(c.x - 145.0f, c.y - 25.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x - 145.0f + L_SHIFT, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
   // Mono Maker Toggle (Between Mix and Mono Maker)
   monoMakerToggle.setBounds(
-      juce::Rectangle<float>(c.x - 207.0f, c.y - 7.0f, 24.0f, 24.0f)
+      juce::Rectangle<float>(c.x - 207.0f + L_SHIFT, c.y - 7.0f, 24.0f, 24.0f)
+          .toNearestInt());
+
+  // Thickness (Left of Mono Maker)
+  thicknessKnob.setBounds(
+      juce::Rectangle<float>(c.x - 400.0f + L_SHIFT, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
   // Mono Maker (Further Left)
   monoMakerKnob.setBounds(
-      juce::Rectangle<float>(c.x - 295.0f, c.y - 25.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x - 295.0f + L_SHIFT, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
-  // IR Mix (Right of Master - Symmetrical to Mix Knob)
+  // IR Mix (Right of Master)
   irMixKnob.setBounds(
-      juce::Rectangle<float>(c.x + 95.0f, c.y - 25.0f, 50.0f, 50.0f)
+      juce::Rectangle<float>(c.x + 85.0f + L_SHIFT, c.y - 25.0f, 50.0f, 50.0f)
           .toNearestInt());
 
-  // Cab (Rightmost - Symmetrical to Mono Maker bounds)
+  // Mojo Tuning (Right of IR Mix) - Tighter Spacing (80px instead of 90px)
+  mojoLoKnob.setBounds(
+      juce::Rectangle<float>(c.x + 165.0f + L_SHIFT, c.y - 25.0f, 50.0f, 50.0f)
+          .toNearestInt());
+  mojoHiKnob.setBounds(
+      juce::Rectangle<float>(c.x + 245.0f + L_SHIFT, c.y - 25.0f, 50.0f, 50.0f)
+          .toNearestInt());
+
+  // Cab (Rightmost)
   cabButton.setBounds(
-      juce::Rectangle<float>(c.x + 175.0f, c.y - 20.0f, 120.0f, 40.0f)
+      juce::Rectangle<float>(c.x + 345.0f + L_SHIFT, c.y - 20.0f, 120.0f, 40.0f)
           .toNearestInt());
 }
 
@@ -2504,6 +2697,11 @@ void FunkyMooseAudioProcessorEditor::openIrChooser() {
 void FunkyMooseAudioProcessorEditor::timerCallback() {
   inVu.setLevel(processor.getInRms());
   outVu.setLevel(processor.getOutRms());
+  
+  // Update Preset Name Sync
+  if (processor.currentPresetName.isNotEmpty() && presetSelector.getButtonText() != processor.currentPresetName) {
+      presetSelector.setButtonText(processor.currentPresetName);
+  }
 
   // MIDI Learn UI Sync
   bool isLearnActive = processor.isMidiLearnActive.load();
