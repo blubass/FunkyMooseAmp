@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## v1.3.0
+
+The "Moose Engine" update.
+
+Added
+- **Enhanced Sag Simulation**: RMS-style follower integrated into SagModule for more natural power supply sag behavior without audio-rate ripple.
+- **Workflow Automation Scripts**: Added `update_defaults.py` for syncing presets with C++ defaults and a robust `apply_presets.py` for baking factor presets into the binary.
+- **Improved UI Skins**: Finalized and integrated new themes: CyberMoose, IceMoose, and DesertMoose.
+
+Changed
+- **Branchless DSP Loops**: Significant CPU optimization in SmartGate and Mojo modules (removed branching in hot processing loops).
+- **Refined Tube Feel**: Better asymmetric saturation curve in AmpToneModule for a meatier character.
+- **Preset Management**: Factory presets are now alphabetical and more robustly embedded.
+
+Fixed
+- **Gain-Staging**: Adjusted internal GAIN/VOLUME compensation in Amp Module when using Auto-Gain.
+
+---
+
 ## v1.2.0
 
 Improved stability, feature set and DSP behavior.
