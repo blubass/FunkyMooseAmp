@@ -29,7 +29,7 @@ public:
   bool hasEditor() const override { return true; }
 
   const juce::String getName() const override {
-    return "FUNKY MOOSE BASS STATEGY";
+    return "FUNKY MOOSE BASS STRATEGY";
   }
   bool acceptsMidi() const override { return true; }
   bool producesMidi() const override { return false; }
@@ -159,6 +159,8 @@ public:
   MooseDSPChain dspChain;
 
   // Cached parameters for high-performance retrieval
+  // autoGateParam = SmartGate on/off, ampAutoGainParam = amp auto-gain,
+  // autoGainParam = output auto-gain
   std::atomic<float> *bypassParam = nullptr;
   std::atomic<float> *autoGateParam = nullptr;
   std::atomic<float> *octOnParam = nullptr;

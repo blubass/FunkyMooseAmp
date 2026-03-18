@@ -34,6 +34,7 @@ public:
     // Reset state
     noiseFloorLin = 0.00005f; // Approx -86dB (Lower start)
     sustainCounter = 0;
+    holdCounter = 0;
     isPrepared = true;
   }
 
@@ -41,6 +42,7 @@ public:
     sidechainHPF.reset();
     gateGain.setCurrentAndTargetValue(1.0f);
     sustainCounter = 0;
+    holdCounter = 0;
   }
 
   void setEnabled(bool e) { enabled = e; }
@@ -116,13 +118,8 @@ public:
     juce::ScopedNoDenormals noDenormals;
     for (int i = 0; i < numSamples; ++i) {
       float g = gateGain.getNextValue();
-      if (g < 0.0001f) {
-        for (int ch = 0; ch < numChannels; ++ch)
-          block.getChannelPointer(ch)[i] = 0.0f;
-      } else {
-        for (int ch = 0; ch < numChannels; ++ch)
-          block.getChannelPointer(ch)[i] *= g;
-      }
+      for (int ch = 0; ch < numChannels; ++ch)
+        block.getChannelPointer(ch)[i] *= g;
     }
   }
 

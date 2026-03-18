@@ -24,6 +24,9 @@ public:
                                     juce::dsp::Convolution::Trim::yes, 0,
                                     juce::dsp::Convolution::Normalise::yes);
       isCustomIrLoaded = true;
+    } else {
+      isCustomIrLoaded = false;
+      DBG("CabSim: IR file not found: " + path);
     }
   }
 

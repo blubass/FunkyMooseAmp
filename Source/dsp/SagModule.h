@@ -52,14 +52,15 @@ public:
       blockPeak = std::max(blockPeak, channelPeak);
     }
 
-    // Smooth global envelope
-    if (blockPeak > globalEnv) {
-      globalEnv += (blockPeak - globalEnv) * (float)attackCoeff;
+    // Smooth global envelope (RMS-style to prevent audio rate ripple on low frequencies)
+    float squaredPeak = blockPeak * blockPeak;
+    if (squaredPeak > globalEnv) {
+      globalEnv += (squaredPeak - globalEnv) * (float)attackCoeff;
     } else {
-      globalEnv += (blockPeak - globalEnv) * (float)releaseCoeff;
+      globalEnv += (squaredPeak - globalEnv) * (float)releaseCoeff;
     }
 
-    float gainReduction = 1.0f - (globalEnv * sagAmount);
+    float gainReduction = 1.0f - (std::sqrt(globalEnv) * sagAmount);
     // Allow more extreme sag (up to 50% reduction) for audibility
     gainReduction = juce::jlimit(0.50f, 1.0f, gainReduction);
 
