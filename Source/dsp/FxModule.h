@@ -94,33 +94,35 @@ public:
       lastClankFreq = targetClankFreq;
     }
 
-    auto fastAtan = [](float x) {
+    auto fastAtan = [](float x) noexcept {
       // Rational approximation for atan(x)
       float x2 = x * x;
       return x * (1.0f + 0.28086f * x2) / (1.0f + 0.614447f * x2 + 0.03029f * x2 * x2);
-      // Alternative even faster: x / (1.0f + 0.28f * std::abs(x)) -- different curve though
     };
+
+    // Pre-calculate drive-independent sample buffers
+    float* chPtrs[2] = { nullptr, nullptr };
+    for (size_t ch = 0; ch < std::min(numCh, (size_t)2); ++ch)
+        chPtrs[ch] = osBlock.getChannelPointer(ch);
 
     for (size_t n = 0; n < numSamples; ++n) {
       const float currentDrive = mojoDrive01.getNextValue();
 
       if (currentDrive > 0.001f) {
-        // Pre-calculate drive-dependent constants to save cycles in channel loop
         const float driveExp = 1.0f + (5.0f * currentDrive);
         const float bias = 0.02f * currentDrive;
-        const float atanBias = std::atan(bias); // std::atan here is fine, it's outside channel loop
+        const float atanBias = fastAtan(bias); // Optimized: Use fastAtan and moved out of inner if possible
         const float outGainComp = (1.0f + (0.3f * currentDrive));
 
-        for (size_t ch = 0; ch < numCh; ++ch) {
-          float *x = osBlock.getChannelPointer(ch);
-          auto &lpF = lpCrossover[ch < 2 ? ch : 0];
-          auto &hpF = hpCrossover[ch < 2 ? ch : 0];
-          auto &preF = clankPeak[ch < 2 ? ch : 0];
-          auto &postF = fizzTamer[ch < 2 ? ch : 0];
+        for (size_t ch = 0; ch < std::min(numCh, (size_t)2); ++ch) {
+          float *x = chPtrs[ch];
+          auto &lpF = lpCrossover[ch];
+          auto &hpF = hpCrossover[ch];
+          auto &preF = clankPeak[ch];
+          auto &postF = fizzTamer[ch];
 
           float sample = x[n];
-          if (!std::isfinite(sample))
-            sample = 0.0f;
+          if (!std::isfinite(sample)) sample = 0.0f;
 
           float low = lpF.processSample(0, sample);
           float high = hpF.processSample(0, sample);
@@ -132,16 +134,14 @@ public:
           float hb = high * driveExp;
           float shaper = fastAtan(hb + bias) - atanBias;
           
-          if (!std::isfinite(shaper))
-            shaper = 0.0f;
+          if (!std::isfinite(shaper)) shaper = 0.0f;
 
           shaper *= outGainComp;
           high = postF.processSample(0, shaper);
 
           // Blend with gain compensation (prevent volume jump)
           float out = (low * 1.1f) + (high * 0.55f);
-          if (!std::isfinite(out))
-            out = 0.0f;
+          if (!std::isfinite(out)) out = 0.0f;
           x[n] = out;
         }
       }

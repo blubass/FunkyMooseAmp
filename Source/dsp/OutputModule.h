@@ -142,7 +142,7 @@ public:
     const float inRms = std::sqrt(inSum / denom);
     const float outRms = std::sqrt(outSum / denom);
     const float tau = 0.02f; // Faster RMS for snappier meters
-    const float alpha = 1.0f - std::exp(-float(n) / float(sampleRate * tau));
+    const float alpha = (sampleRate > 0.0) ? (1.0f - std::exp(-float(n) / float(sampleRate * tau))) : 0.1f;
     inRmsSmooth += alpha * (inRms - inRmsSmooth);
     outRmsSmooth += alpha * (outRms - outRmsSmooth);
     inRmsAtomic.store(inRmsSmooth, std::memory_order_relaxed);

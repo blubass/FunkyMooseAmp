@@ -65,10 +65,8 @@ public:
     gainReduction = juce::jlimit(0.50f, 1.0f, gainReduction);
 
     for (size_t ch = 0; ch < numCh; ++ch) {
-      float *d = block.getChannelPointer(ch);
-      for (size_t i = 0; i < numSamples; ++i) {
-        d[i] *= gainReduction;
-      }
+        if (float* d = block.getChannelPointer(ch))
+            juce::FloatVectorOperations::multiply(d, gainReduction, (int)numSamples);
     }
   }
 

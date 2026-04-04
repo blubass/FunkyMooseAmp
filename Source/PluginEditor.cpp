@@ -100,7 +100,6 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
 
   setGroup({&gainKnob, &bassKnob, &midKnob, &trebleKnob, &volumeKnob, &sagKnob}, "AMP");
   setGroup({&outKnob, &mixKnob, &monoMakerKnob, &thicknessKnob}, "MASTER");
-  setGroup({&outKnob, &mixKnob, &monoMakerKnob, &thicknessKnob}, "MASTER");
   setGroup({&mojoLoKnob, &mojoHiKnob}, "FX"); // Using FX color for Mojo tuning
   setGroup({&compInKnob, &compThreshKnob, &compMakeKnob, &compAtkKnob,
             &compRelKnob, &compMixKnob},
@@ -109,7 +108,6 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   setGroup({&envAtkKnob, &envDecKnob, &envRangeKnob}, "ENV");
   setGroup({&phRateKnob, &phColKnob, &phMixKnob}, "PH");
   setGroup({&chRateKnob, &chDepthKnob, &chMixKnob}, "CH");
-  setGroup({&outKnob, &mixKnob, &monoMakerKnob}, "MASTER");
 
   // Specific Branding for VIP knobs
   gainKnob.setName("GAIN_AMP");

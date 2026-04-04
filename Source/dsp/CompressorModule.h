@@ -123,67 +123,59 @@ public:
 
     float meterGrDb = grDbMeter.load();
 
+    const float makeupL = makeupLin;
+    const float* readPtrsC[2] = { nullptr, nullptr };
+    float* writePtrsC[2] = { nullptr, nullptr };
+    for (int ch = 0; ch < std::min(numCh, 2); ++ch) {
+        readPtrsC[ch] = block.getChannelPointer(ch);
+        writePtrsC[ch] = block.getChannelPointer(ch);
+    }
+
     for (int n = 0; n < numSamples; ++n) {
       float sc = 0.0f;
-      for (int ch = 0; ch < numCh; ++ch) {
-        float s = block.getSample(ch, n);
-        if (!std::isfinite(s))
-          s = 0.0f;
-        sc = juce::jmax(sc, std::abs(s));
+      for (int ch = 0; ch < std::min(numCh, 2); ++ch) {
+        float s = readPtrsC[ch][n];
+        if (!std::isfinite(s)) s = 0.0f;
+        float absS = std::abs(s);
+        if (absS > sc) sc = absS;
       }
 
       sc = scHPF.processSingleSampleRaw(sc);
-      if (!std::isfinite(sc))
-        sc = 0.0f;
+      if (!std::isfinite(sc)) sc = 0.0f;
 
       const float target = sc * sc;
-      const float c =
-          (target > scEnv) ? (float)attackCoeff : (float)releaseCoeff;
+      const float c = (target > scEnv) ? (float)attackCoeff : (float)releaseCoeff;
       scEnv = c * scEnv + (1.0f - c) * target;
-      if (!std::isfinite(scEnv))
-        scEnv = 0.0f;
+      if (!std::isfinite(scEnv)) scEnv = 0.0f;
 
-      // Detection (Linear level)
-      // Use juce::jmax to avoid sqrt(0) or negative (though target is squared)
-      const float level = std::sqrt(juce::jmax(0.0f, scEnv));
+      const float level = std::sqrt(std::max(0.0f, scEnv));
 
-      // Calculate Gain
       float g = 1.0f;
-      if (level > thresholdLin && level > 0.00001f) {
-        // Gain reduction calculation: g = (threshold / level) ^ (1 - 1/ratio)
-        // Which is Decibels::decibelsToGain(-overDb * slope)
+      if (level > thresholdLin && level > 1e-6f) {
         float inDb = juce::Decibels::gainToDecibels(level);
-        float overDb = inDb - thresholdDb;
-        g = juce::Decibels::decibelsToGain(-overDb * slope);
+        g = juce::Decibels::decibelsToGain(-(inDb - thresholdDb) * slope);
       }
-      if (!std::isfinite(g))
-        g = 1.0f;
+      if (!std::isfinite(g)) g = 1.0f;
 
       const float gc = (g < gr) ? gcAttack : gcRelease;
       gr = gc * gr + (1.0f - gc) * g;
-      if (!std::isfinite(gr))
-        gr = 1.0f;
+      if (!std::isfinite(gr)) gr = 1.0f;
 
-      // Apply to all channels
-      const float totalGain = gr * makeupLin;
+      const float totalGain = gr * makeupL;
       const float mix = enableSm.getNextValue() * mixSm.getNextValue();
 
-      for (int ch = 0; ch < numCh; ++ch) {
-        float *ptr = block.getChannelPointer((size_t)ch);
+      for (int ch = 0; ch < std::min(numCh, 2); ++ch) {
+        float* ptr = writePtrsC[ch];
         float dry = ptr[n];
         float wet = dry * totalGain;
-
         float out = dry + (wet - dry) * mix;
-        if (!std::isfinite(out))
-          out = 0.0f;
+        if (!std::isfinite(out)) out = 0.0f;
         ptr[n] = out;
       }
 
       // Decimated metering
       if ((n & 31) == 0) {
-        float currentGrDb = juce::Decibels::gainToDecibels(gr);
-        if (!std::isfinite(currentGrDb))
-          currentGrDb = 0.0f;
+        float currentGrDb = juce::Decibels::gainToDecibels(std::max(gr, 1e-6f));
         meterGrDb = 0.9f * meterGrDb + 0.1f * currentGrDb;
       }
     }

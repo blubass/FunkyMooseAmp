@@ -144,6 +144,7 @@ public:
   bool lastLowCutOn = false;
   bool lastMonoMakerOn = true;
   bool lastAutoGainState = false;
+  bool firstProcessBlockCall = true;
 
   std::atomic<float> cpuUsage{0.0f};
   std::atomic<float> midiActivity{0.0f};
@@ -207,6 +208,7 @@ public:
   std::atomic<float> *monoMakerOnParam = nullptr;
   std::atomic<float> *autoGainParam = nullptr;
   std::atomic<float> *forceMonoInputParam = nullptr;
+  std::atomic<float> *tunerOnParam = nullptr;
   std::atomic<float> *mojoCrossoverParam = nullptr;
   std::atomic<float> *mojoClankParam = nullptr;
   std::atomic<float> *ampSagParam = nullptr;

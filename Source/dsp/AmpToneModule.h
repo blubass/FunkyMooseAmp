@@ -13,6 +13,7 @@
 class AmpToneModule {
 public:
   void prepare(const juce::dsp::ProcessSpec &spec) {
+    if (spec.sampleRate <= 0.0) return;
     sampleRate = spec.sampleRate;
 
     bass.reset();
@@ -192,44 +193,45 @@ public:
       prePresence.process(ctx);
 
       // Pre-calculate tube constants
-      const float drive = saturationDrive * 1.5f;
-      const float tubeBias = 0.15f;
-      const float biasTanh = 0.148885f; // std::tanh(0.15f)
+      const float drv = saturationDrive * 1.5f;
+      const float tBias = 0.15f;
+      const float bTanh = 0.148885f; // std::tanh(0.15f)
       
-      auto fastTanh = [](float val) {
+      auto fastTanh = [](float val) noexcept {
           float av = std::abs(val);
           if (av >= 3.0f) return (val > 0) ? 1.0f : -1.0f;
           return val * (27.0f + val * val) / (27.0f + 9.0f * val * val);
       };
 
       for (int i = 0; i < numSamples; ++i) {
-        // CALL SMOOTHERS ONCE PER SAMPLE (Fixed stereo sync bug)
-        const float currentGain = inputGainSm.getNextValue();
-        const float currentTubeOn = tubeOnSm.getNextValue();
+        const float cGain = inputGainSm.getNextValue();
+        const float cTubeOn = tubeOnSm.getNextValue();
+        const float cTubeOff = 1.0f - cTubeOn;
+        const float cOutScale = 0.85f - (cTubeOn * 0.05f);
 
         for (int ch = 0; ch < numCh; ++ch) {
           float *data = block.getChannelPointer(ch);
-          float x = data[i] * currentGain;
+          float x = data[i] * cGain;
           const float dryPreSat = x;
 
           // Tube Saturation (More aggressive, asymmetric for 'Tube' feel)
-          float hb = x * drive;
+          float hb = x * drv;
 
           // Asymmetric shaper using fast tanh
-          float y = fastTanh(hb + tubeBias) - biasTanh;
+          float y = fastTanh(hb + tBias) - bTanh;
 
           // Add some 2nd harmonic (asymmetry) and 3rd harmonic (grid current)
           y += 0.06f * (hb * hb) + 0.04f * (hb * hb * hb);
 
           // DC Removal (1-pole HPF @ 5 Hz)
-          dcFilter[ch] += (y - dcFilter[ch]) * dcRemovalCoeff;
-          y -= dcFilter[ch];
+          dcFilter[(size_t)ch] += (y - dcFilter[(size_t)ch]) * dcRemovalCoeff;
+          y -= dcFilter[(size_t)ch];
 
           // Mix Tube Saturation (Smoothed)
-          y = dryPreSat + (y - dryPreSat) * currentTubeOn;
+          y = (dryPreSat * cTubeOff) + (y * cTubeOn);
 
           // Saturator compressed output
-          data[i] = y * (0.85f - (currentTubeOn * 0.05f));
+          data[i] = y * cOutScale;
 
           float absY = std::abs(y);
           if (absY > peak)

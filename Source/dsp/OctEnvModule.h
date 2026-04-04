@@ -145,7 +145,7 @@ public:
 
         // Read delayed dry signal
         int readPtr =
-            (delayPtr - getLatencyInSamples() + delayLineSize) % delayLineSize;
+            ((delayPtr - getLatencyInSamples()) % delayLineSize + delayLineSize) % delayLineSize;
 
         for (int ch = 0; ch < chs; ++ch) {
           float dryDelayed = dryDelayLine[(size_t)(readPtr * numChannels + ch)];
