@@ -145,11 +145,12 @@ if (APPLE AND TARGET FUNKY_MOOSE_AMP_Standalone)
     set(FUNKY_STANDALONE_ENTITLEMENTS
         "${CMAKE_CURRENT_SOURCE_DIR}/Source/mac_entitlements.plist")
 
-    add_custom_command(TARGET FUNKY_MOOSE_AMP_Standalone POST_BUILD
+    add_custom_target(FUNKY_MOOSE_AMP_Standalone_ad_hoc_sign ALL
         COMMAND ${CMAKE_COMMAND}
             -DENTITLEMENTS=${FUNKY_STANDALONE_ENTITLEMENTS}
             -DBUNDLE_PATH=$<TARGET_FILE:FUNKY_MOOSE_AMP_Standalone>
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sign_bundle_ad_hoc.cmake"
+        DEPENDS FUNKY_MOOSE_AMP_Standalone
         COMMENT "Signing Standalone with Microphone Entitlements..."
         VERBATIM
     )
