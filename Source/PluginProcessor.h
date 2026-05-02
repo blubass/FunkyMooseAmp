@@ -13,7 +13,7 @@ class FunkyMooseAudioProcessor
       public juce::AudioProcessorValueTreeState::Listener,
       private juce::AsyncUpdater {
 public:
-  static constexpr int projectVersion = 120;
+  static constexpr int projectVersion = 130;
 
   FunkyMooseAudioProcessor();
   ~FunkyMooseAudioProcessor() override = default;
@@ -29,7 +29,7 @@ public:
   bool hasEditor() const override { return true; }
 
   const juce::String getName() const override {
-    return "FUNKY MOOSE BASS STRATEGY";
+    return "Funky Moose Amp";
   }
   bool acceptsMidi() const override { return true; }
   bool producesMidi() const override { return false; }
@@ -85,8 +85,7 @@ public:
 
   void updateLatency();
 
-  void handleAkaiMpkMiniMapping(const juce::MidiMessage &msg, int ccNum,
-                                float ccVal);
+  void handleAkaiMpkMiniMapping(int ccNum, float ccVal);
   void handleAkaiMpkMiniToggles(const juce::MidiMessage &msg, int noteNum);
 
   void parameterChanged(const juce::String &parameterID,
@@ -203,6 +202,7 @@ public:
   std::atomic<float> *cabTypeParam = nullptr;
   std::atomic<float> *irMixParam = nullptr;
   std::atomic<float> *masterOutParam = nullptr;
+  std::atomic<float> *masterMixParam = nullptr;
   std::atomic<float> *masterOnParam = nullptr;
   std::atomic<float> *monoMakerParam = nullptr;
   std::atomic<float> *monoMakerOnParam = nullptr;
@@ -218,6 +218,14 @@ private:
   void handleAsyncUpdate() override;
 
   int findParameterIndexByID(const juce::String &parameterID) const;
+  int findParameterIndexByID(const char *parameterID) const;
+  void queueMidiParameterChange(int parameterIndex, float normalisedValue);
+  void flushQueuedMidiParameterChanges();
+
+  static constexpr size_t maxQueuedMidiParameters = 128;
+  std::array<std::atomic<float>, maxQueuedMidiParameters> queuedMidiValues{};
+  std::array<std::atomic<bool>, maxQueuedMidiParameters> queuedMidiDirty{};
+  std::atomic<bool> queuedMidiChangesPending{false};
 
   juce::AudioBuffer<float> dryBuffer;
 

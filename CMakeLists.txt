@@ -28,13 +28,22 @@ endif()
 # cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DJUCE_DIR="/path/to/JUCE/install/lib/cmake/JUCE-8.0.10"
 find_package(JUCE CONFIG REQUIRED)
 
-# ---- Icon Setup ----
+# ---- Icon Setup with Validation ----
 if (APPLE)
-    set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns")
+    set(ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/FunkyMoose.icns")
+    if (NOT EXISTS "${ICON_FILE}")
+        message(FATAL_ERROR "macOS icon not found: ${ICON_FILE}")
+    endif()
+    set(FUNKY_ICON_ARG ICON_BIG "${ICON_FILE}")
 elseif (WIN32)
     # Using PNG as source - JUCE converts this to a Windows Icon automatically during build.
     # This is more reliable on GitHub Actions than direct .ico referencing.
-    set(FUNKY_ICON_ARG ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/elch_vintage.png")
+    set(ICON_FILE "${CMAKE_CURRENT_SOURCE_DIR}/Source/Assets/elch_vintage.png")
+    if (NOT EXISTS "${ICON_FILE}")
+        message(WARNING "Windows icon not found at ${ICON_FILE}, build will continue")
+    else()
+        set(FUNKY_ICON_ARG ICON_BIG "${ICON_FILE}")
+    endif()
 else()
     set(FUNKY_ICON_ARG "")
 endif()
@@ -128,16 +137,21 @@ if (APPLE AND TARGET FUNKY_MOOSE_AMP_Standalone)
         "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../Resources/Icon.icns"
         COMMAND /usr/bin/touch "$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../.."
         COMMENT "Enforcing Elch icon over dummy Icon.icns and refreshing bundle..."
+        VERBATIM
     )
 
-    # Automatic signing with Microphone Entitlements (ad-hoc)
+    # Automatic signing with Microphone Entitlements (ad-hoc) - with error checking
     # This helps macOS remember the permission across local rebuilds.
+    set(FUNKY_STANDALONE_ENTITLEMENTS
+        "${CMAKE_CURRENT_SOURCE_DIR}/Source/mac_entitlements.plist")
+
     add_custom_command(TARGET FUNKY_MOOSE_AMP_Standalone POST_BUILD
-        COMMAND codesign --force --deep --sign -
-                --entitlements "${CMAKE_CURRENT_SOURCE_DIR}/Source/mac_entitlements.plist"
-                --options runtime
-                "$<TARGET_FILE:FUNKY_MOOSE_AMP_Standalone>"
+        COMMAND ${CMAKE_COMMAND}
+            -DENTITLEMENTS=${FUNKY_STANDALONE_ENTITLEMENTS}
+            -DBUNDLE_PATH=$<TARGET_FILE:FUNKY_MOOSE_AMP_Standalone>
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sign_bundle_ad_hoc.cmake"
         COMMENT "Signing Standalone with Microphone Entitlements..."
+        VERBATIM
     )
 endif()
 

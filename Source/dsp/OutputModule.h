@@ -27,8 +27,12 @@ public:
     outGain.prepare(spec);
     outGain.setRampDurationSeconds(0.05);
 
-    // Mono Maker (High pass on Side channel)
-    sideHighPass.prepare(spec);
+    // Mono Maker (high-pass on the side channel only)
+    auto sideSpec = spec;
+    sideSpec.numChannels = 1;
+    sideHighPass.prepare(sideSpec);
+    sideHighPass.setType(juce::dsp::StateVariableTPTFilterType::highpass);
+    sideHighPass.setCutoffFrequency(20.0f);
     sideHighPass.reset();
 
     sampleRate = spec.sampleRate;
@@ -44,8 +48,9 @@ public:
   }
 
   void setMonoMakerFreq(float freq) noexcept {
-    monoMakerFreq = freq;
-    updateMonoMaker();
+    const auto maxFreq =
+        sampleRate > 0.0 ? (float)juce::jmin(400.0, sampleRate * 0.45) : 400.0f;
+    monoMakerFreq = juce::jlimit(20.0f, maxFreq, freq);
   }
 
   void setMonoMakerEnabled(bool enabled) noexcept {
@@ -73,6 +78,8 @@ public:
 
     // 0. Mono Maker (Pre Output Gain)
     if (monoMakerEnabled && monoMakerFreq > 20.0f) {
+      updateMonoMaker();
+
       juce::dsp::AudioBlock<float> block = ctx.getOutputBlock();
       if (block.getNumChannels() == 2) {
         // Convert L/R -> M/S
@@ -142,7 +149,10 @@ public:
     const float inRms = std::sqrt(inSum / denom);
     const float outRms = std::sqrt(outSum / denom);
     const float tau = 0.02f; // Faster RMS for snappier meters
-    const float alpha = (sampleRate > 0.0) ? (1.0f - std::exp(-float(n) / float(sampleRate * tau))) : 0.1f;
+    const float alpha = (sampleRate > 0.0)
+                            ? (1.0f - std::exp(-float(n) /
+                                                float(sampleRate * tau)))
+                            : 0.1f;
     inRmsSmooth += alpha * (inRms - inRmsSmooth);
     outRmsSmooth += alpha * (outRms - outRmsSmooth);
     inRmsAtomic.store(inRmsSmooth, std::memory_order_relaxed);
@@ -171,19 +181,19 @@ private:
   // Mono Maker
   float monoMakerFreq = 0.0f;
   bool monoMakerEnabled = true;
-  juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>,
-                                 juce::dsp::IIR::Coefficients<float>>
-      sideHighPass;
+  juce::dsp::StateVariableTPTFilter<float> sideHighPass;
+  float lastMonoMakerFreq = -1.0f;
 
   // Auto Gain
   bool autoGainEnabled = false;
   float autoGainComp = 1.0f;
 
   void updateMonoMaker() {
-    if (sampleRate > 0.0) {
-      *sideHighPass.state = *juce::dsp::IIR::Coefficients<float>::makeHighPass(
-          sampleRate, monoMakerFreq);
-    }
+    if (std::abs(monoMakerFreq - lastMonoMakerFreq) < 0.1f)
+      return;
+
+    sideHighPass.setCutoffFrequency(monoMakerFreq);
+    lastMonoMakerFreq = monoMakerFreq;
   }
 
   juce::dsp::Limiter<float> limiter;

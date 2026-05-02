@@ -2680,14 +2680,15 @@ void FunkyMooseAudioProcessorEditor::openIrChooser() {
         auto file = fc.getResult();
         if (file.existsAsFile()) {
           lastIrDirectory = file.getParentDirectory();
-          // Update the DSP
-          processor.dspChain.getCabSim().loadCustomIr(file.getFullPathName());
-
-          // Set APVTS parameter to 3 (CUSTOM IR) -> Normalized 1.0f
-          auto *p = processor.apvts.getParameter("cabType");
-          p->beginChangeGesture();
-          p->setValueNotifyingHost(1.0f);
-          p->endChangeGesture();
+          if (processor.dspChain.getCabSim().loadCustomIr(
+                  file.getFullPathName())) {
+            // Set APVTS parameter to 3 (CUSTOM IR) -> Normalized 1.0f
+            if (auto *p = processor.apvts.getParameter("cabType")) {
+              p->beginChangeGesture();
+              p->setValueNotifyingHost(1.0f);
+              p->endChangeGesture();
+            }
+          }
         }
       });
 }

@@ -1,7 +1,10 @@
 name: Release FunkyMoose Amp
 
 on:
+  workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - 'v*'   # Triggered by: git tag v1.0.0-beta.1 && git push --tags
 
@@ -118,6 +121,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [build-macos, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
     permissions:

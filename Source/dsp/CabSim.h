@@ -16,7 +16,13 @@ public:
   juce::String customIrPath;
   bool isCustomIrLoaded = false;
 
-  void loadCustomIr(const juce::String &path) {
+  void clearCustomIr() {
+    customIrPath.clear();
+    isCustomIrLoaded = false;
+    convolver.reset();
+  }
+
+  bool loadCustomIr(const juce::String &path) {
     juce::File file(path);
     if (file.existsAsFile()) {
       customIrPath = path;
@@ -24,10 +30,11 @@ public:
                                     juce::dsp::Convolution::Trim::yes, 0,
                                     juce::dsp::Convolution::Normalise::yes);
       isCustomIrLoaded = true;
-    } else {
-      isCustomIrLoaded = false;
-      DBG("CabSim: IR file not found: " + path);
+      return true;
     }
+
+    clearCustomIr();
+    return false;
   }
 
   void prepare(const juce::dsp::ProcessSpec &spec) {
