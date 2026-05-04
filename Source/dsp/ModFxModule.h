@@ -17,11 +17,13 @@ public:
 
     phaser.prepare(spec);
     chorus.prepare(spec);
+    chorusCrossover.prepare(spec);
 
     // Chorus defaults (TC-ish fast)
     chorus.setCentreDelay(15.0f);
     chorus.setMix(0.5f);
     chorus.setFeedback(0.0f);
+    chorusCrossover.setCutoffFrequency(chCrossoverHz);
 
     // Init Smoothers
     phMixSm.reset(spec.sampleRate, 0.05); // 50ms ramp
@@ -33,6 +35,7 @@ public:
 
     // Prepare temp buffer for parallel processing
     tempBuffer.setSize((int)spec.numChannels, (int)spec.maximumBlockSize);
+    chorusLowBuffer.setSize((int)spec.numChannels, (int)spec.maximumBlockSize);
 
     prepared = true;
   }
@@ -40,6 +43,7 @@ public:
   void reset() {
     phaser.reset();
     chorus.reset();
+    chorusCrossover.reset();
   }
 
   void process(const juce::dsp::ProcessContextReplacing<float> &ctx) {
@@ -69,8 +73,7 @@ public:
       phaser.process(ctx);
       mainBlock.multiplyBy(phOnLevel);
 
-      juce::dsp::ProcessContextReplacing<float> tempCtx(tempSub);
-      chorus.process(tempCtx);
+      processChorusBand(tempSub);
       tempSub.multiplyBy(chOnLevel);
 
       mainBlock.add(tempSub);
@@ -101,7 +104,7 @@ public:
         auto sub = tempBlock.getSubBlock(0, mainBlock.getNumSamples());
         sub.copyFrom(mainBlock);
 
-        chorus.process(ctx);
+        processChorusBand(mainBlock);
 
         for (int ch = 0; ch < (int)mainBlock.getNumChannels(); ++ch) {
           auto *out = mainBlock.getChannelPointer(ch);
@@ -153,12 +156,48 @@ public:
   void setChorusRate(float v) noexcept { chRate01 = v; }
   void setChorusDepth(float v) noexcept { chDepth01 = v; }
   void setChorusMix(float v) noexcept { chMixSm.setTargetValue(v); }
+  void setChorusCrossover(float hz) noexcept {
+    chCrossoverHz = juce::jlimit(80.0f, 800.0f, hz);
+  }
 
   void setParallel(bool parallel) noexcept { isParallel = parallel; }
 
 private:
+  void updateChorusCrossover() {
+    if (std::abs(chCrossoverHz - lastChCrossoverHz) > 0.5f) {
+      chorusCrossover.setCutoffFrequency(chCrossoverHz);
+      lastChCrossoverHz = chCrossoverHz;
+    }
+  }
+
+  void processChorusBand(juce::dsp::AudioBlock<float> block) {
+    updateChorusCrossover();
+
+    juce::dsp::AudioBlock<float> lowBlock(chorusLowBuffer);
+    auto lowSub = lowBlock.getSubBlock(0, block.getNumSamples());
+
+    for (size_t ch = 0; ch < block.getNumChannels(); ++ch) {
+      auto *samples = block.getChannelPointer(ch);
+      auto *low = lowSub.getChannelPointer(ch);
+
+      for (size_t i = 0; i < block.getNumSamples(); ++i) {
+        float lowSample = 0.0f;
+        float highSample = 0.0f;
+        chorusCrossover.processSample((int)ch, samples[i], lowSample,
+                                      highSample);
+        low[i] = lowSample;
+        samples[i] = highSample;
+      }
+    }
+
+    juce::dsp::ProcessContextReplacing<float> chorusCtx(block);
+    chorus.process(chorusCtx);
+    block.add(lowSub);
+  }
+
   juce::dsp::Phaser<float> phaser;
   juce::dsp::Chorus<float> chorus;
+  juce::dsp::LinkwitzRileyFilter<float> chorusCrossover;
   bool prepared{false};
 
   // Smoothers for Mix parameters
@@ -173,13 +212,16 @@ private:
   float phColour01 = 0.5f;
   float chRate01 = 0.5f;
   float chDepth01 = 0.5f;
+  float chCrossoverHz = 180.0f;
 
   // Cache for parameter updates
   float lastPhRate = -1.0f;
   float lastPhCol = -1.0f;
   float lastChRate = -1.0f;
   float lastChDepth = -1.0f;
+  float lastChCrossoverHz = -1.0f;
 
   bool isParallel = false;
   juce::AudioBuffer<float> tempBuffer;
+  juce::AudioBuffer<float> chorusLowBuffer;
 };

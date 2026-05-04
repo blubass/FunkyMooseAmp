@@ -75,9 +75,9 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
                   &compAtkKnob,  &compRelKnob,  &compMixKnob,    &oct1Knob,
                   &oct2Knob,     &octMixKnob,   &envAtkKnob,     &envDecKnob,
                   &envRangeKnob, &phRateKnob,   &phColKnob,      &phMixKnob,
-                  &chRateKnob,   &chDepthKnob,  &chMixKnob,      &outKnob,
-                  &mixKnob,      &monoMakerKnob, &mojoLoKnob,    &mojoHiKnob,
-                  &sagKnob,      &thicknessKnob}) {
+                  &chRateKnob,   &chDepthKnob,  &chMixKnob,
+                  &chCrossoverKnob, &outKnob,   &mixKnob,        &monoMakerKnob,
+                  &mojoLoKnob,   &mojoHiKnob,   &sagKnob,        &thicknessKnob}) {
     content.addAndMakeVisible(*k);
 
     // Init Logic (Inline) + POPUP ENABLED
@@ -107,7 +107,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   setGroup({&oct1Knob, &oct2Knob, &octMixKnob}, "OCT");
   setGroup({&envAtkKnob, &envDecKnob, &envRangeKnob}, "ENV");
   setGroup({&phRateKnob, &phColKnob, &phMixKnob}, "PH");
-  setGroup({&chRateKnob, &chDepthKnob, &chMixKnob}, "CH");
+  setGroup({&chRateKnob, &chDepthKnob, &chMixKnob, &chCrossoverKnob}, "CH");
 
   // Specific Branding for VIP knobs
   gainKnob.setName("GAIN_AMP");
@@ -200,9 +200,9 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
           &compAtkKnob,   &compRelKnob, &compMixKnob,    &oct1Knob,
           &oct2Knob,      &octMixKnob,  &envAtkKnob,     &envDecKnob,
           &envRangeKnob,  &phRateKnob,  &phColKnob,      &phMixKnob,
-          &chRateKnob,    &chDepthKnob, &chMixKnob,      &outKnob,
-          &monoMakerKnob, &irMixKnob,   &mojoLoKnob,     &mojoHiKnob,
-          &sagKnob,       &thicknessKnob}) {
+          &chRateKnob,    &chDepthKnob, &chMixKnob,      &chCrossoverKnob,
+          &outKnob,       &monoMakerKnob, &irMixKnob,    &mojoLoKnob,
+          &mojoHiKnob,    &sagKnob,     &thicknessKnob}) {
       k->setPopupDisplayEnabled(show, show, this);
     }
   };
@@ -444,8 +444,8 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   // Min: 1024x576 (50%), Max: 3072x1728 (150%)
   setResizeLimits(1024, (int)(1024.0 / ratio), 3072, (int)(3072.0 / ratio));
 
-  // Start Size: ~1280x720 (Standard HD) or slightly larger
-  setSize(1400, (int)(1400.0 / ratio));
+  auto editorBounds = processor.getLastEditorBounds();
+  setSize(editorBounds.getWidth(), editorBounds.getHeight());
 
   // CONNECTIONS
   using SA = juce::AudioProcessorValueTreeState::SliderAttachment;
@@ -555,6 +555,7 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
   chRateAtt = std::make_unique<SA>(ts, "chRate", chRateKnob);
   chDepthAtt = std::make_unique<SA>(ts, "chDepth", chDepthKnob);
   chMixAtt = std::make_unique<SA>(ts, "chMix", chMixKnob);
+  chCrossoverAtt = std::make_unique<SA>(ts, "chCrossover", chCrossoverKnob);
 
   outAtt = std::make_unique<SA>(ts, "masterOut", outKnob);
   mixAtt = std::make_unique<SA>(ts, "masterMix", mixKnob);
@@ -572,21 +573,20 @@ FunkyMooseAudioProcessorEditor::FunkyMooseAudioProcessorEditor(
                   &compAtkKnob,  &compRelKnob,   &compMixKnob,    &oct1Knob,
                   &oct2Knob,     &octMixKnob,    &envAtkKnob,     &envDecKnob,
                   &envRangeKnob, &phRateKnob,    &phColKnob,      &phMixKnob,
-                  &chRateKnob,   &chDepthKnob,   &chMixKnob,      &outKnob,
-                  &mixKnob,      &monoMakerKnob, &irMixKnob,      &mojoLoKnob,
-                  &mojoHiKnob,   &sagKnob,       &thicknessKnob}) {
+                  &chRateKnob,   &chDepthKnob,   &chMixKnob,
+                  &chCrossoverKnob, &outKnob,    &mixKnob,        &monoMakerKnob,
+                  &irMixKnob,    &mojoLoKnob,    &mojoHiKnob,     &sagKnob,
+                  &thicknessKnob}) {
     k->textFromValueFunction = [](double value) {
       return juce::String(value, 1);
     };
   }
+  chCrossoverKnob.textFromValueFunction = [](double value) {
+    return juce::String((int)std::round(value)) + " Hz";
+  };
 
   updateStaticBackground();
   updateGlowCaches();
-
-  // Allow the standalone window to be resized freely
-  setResizable(true, true);
-  setResizeLimits(800, 300, 4096, 2048);
-  setSize(designW / 2, designH / 2); // Default: half of design size
 
   startTimerHz(30);
   processor.apvts.addParameterListener("skin", this);
@@ -1696,6 +1696,7 @@ void FunkyMooseAudioProcessorEditor::updateStaticBackground() {
   labelUnder(chRateKnob, "RATE", 15.0f, sub);
   labelUnder(chDepthKnob, "DEPTH", 15.0f, sub);
   labelUnder(chMixKnob, "MIX", 15.0f, sub);
+  labelUnder(chCrossoverKnob, "XOVER", 14.0f, sub);
 
   // MASTER - Overlay
   // If a pre-rendered skin overlay exists, draw it; otherwise nothing.
@@ -2094,6 +2095,8 @@ void FunkyMooseAudioProcessorEditor::resized() {
 
   if (area.isEmpty())
     return;
+
+  processor.setLastEditorSize(getWidth(), getHeight());
 
   const float sx = area.getWidth() / (float)designW;
   const float sy = area.getHeight() / (float)designH;
@@ -2590,10 +2593,32 @@ void FunkyMooseAudioProcessorEditor::layoutFx(const juce::Rectangle<float> &) {
     c.setBounds(juce::Rectangle<float>(x, y, k, k).toNearestInt());
   };
 
+  auto layout4 = [&](juce::Rectangle<float> area, juce::Component &a,
+                     juce::Component &b, juce::Component &c,
+                     juce::Component &d) {
+    area.removeFromTop(header);
+    area = area.reduced(14.0f, insetY);
+
+    constexpr float k4 = 62.0f;
+    constexpr float gap4 = 12.0f;
+    const float totalW = k4 * 4.0f + gap4 * 3.0f;
+    float x = area.getCentreX() - totalW / 2.0f;
+    float y = area.getCentreY() - k4 / 2.0f - 28.0f;
+
+    a.setBounds(juce::Rectangle<float>(x, y, k4, k4).toNearestInt());
+    x += k4 + gap4;
+    b.setBounds(juce::Rectangle<float>(x, y, k4, k4).toNearestInt());
+    x += k4 + gap4;
+    c.setBounds(juce::Rectangle<float>(x, y, k4, k4).toNearestInt());
+    x += k4 + gap4;
+    d.setBounds(juce::Rectangle<float>(x, y, k4, k4).toNearestInt());
+  };
+
   layout3(L.fxSlots[0], oct1Knob, oct2Knob, octMixKnob);
   layout3(L.fxSlots[1], envAtkKnob, envDecKnob, envRangeKnob);
   layout3(L.fxSlots[2], phRateKnob, phColKnob, phMixKnob);
-  layout3(L.fxSlots[3], chRateKnob, chDepthKnob, chMixKnob);
+  layout4(L.fxSlots[3], chRateKnob, chDepthKnob, chMixKnob,
+          chCrossoverKnob);
 }
 
 void FunkyMooseAudioProcessorEditor::layoutMaster(
@@ -2793,7 +2818,8 @@ void FunkyMooseAudioProcessorEditor::timerCallback() {
 
     // FX Slot 3 (Chorus)
     setAlphaForModule(chorusOn.getToggleState(),
-                      {&chRateKnob, &chDepthKnob, &chMixKnob});
+                      {&chRateKnob, &chDepthKnob, &chMixKnob,
+                       &chCrossoverKnob});
 
     // Master
     setAlphaForModule(masterOn.getToggleState(),

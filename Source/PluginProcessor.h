@@ -14,6 +14,8 @@ class FunkyMooseAudioProcessor
       private juce::AsyncUpdater {
 public:
   static constexpr int projectVersion = 130;
+  static constexpr int defaultEditorWidth = 1024;
+  static constexpr int defaultEditorHeight = 576;
 
   FunkyMooseAudioProcessor();
   ~FunkyMooseAudioProcessor() override = default;
@@ -84,6 +86,18 @@ public:
   void loadMidiMap();
 
   void updateLatency();
+
+  void setLastEditorSize(int width, int height) noexcept {
+    lastEditorWidth.store(juce::jlimit(1024, 3072, width),
+                          std::memory_order_relaxed);
+    lastEditorHeight.store(juce::jlimit(576, 1728, height),
+                           std::memory_order_relaxed);
+  }
+
+  juce::Rectangle<int> getLastEditorBounds() const noexcept {
+    return {0, 0, lastEditorWidth.load(std::memory_order_relaxed),
+            lastEditorHeight.load(std::memory_order_relaxed)};
+  }
 
   void handleAkaiMpkMiniMapping(int ccNum, float ccVal);
   void handleAkaiMpkMiniToggles(const juce::MidiMessage &msg, int noteNum);
@@ -198,6 +212,7 @@ public:
   std::atomic<float> *chRateParam = nullptr;
   std::atomic<float> *chDepthParam = nullptr;
   std::atomic<float> *chMixParam = nullptr;
+  std::atomic<float> *chCrossoverParam = nullptr;
   std::atomic<float> *fxParallelParam = nullptr;
   std::atomic<float> *cabTypeParam = nullptr;
   std::atomic<float> *irMixParam = nullptr;
@@ -226,6 +241,9 @@ private:
   std::array<std::atomic<float>, maxQueuedMidiParameters> queuedMidiValues{};
   std::array<std::atomic<bool>, maxQueuedMidiParameters> queuedMidiDirty{};
   std::atomic<bool> queuedMidiChangesPending{false};
+
+  std::atomic<int> lastEditorWidth{defaultEditorWidth};
+  std::atomic<int> lastEditorHeight{defaultEditorHeight};
 
   juce::AudioBuffer<float> dryBuffer;
 

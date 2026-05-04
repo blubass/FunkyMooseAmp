@@ -154,6 +154,9 @@ FunkyMooseAudioProcessor::createParams() {
       "chDepth", "Depth", juce::NormalisableRange<float>(0.0f, 1.0f), 0.55f));
   p.push_back(std::make_unique<APF>(
       "chMix", "Ch Mix", juce::NormalisableRange<float>(0.0f, 100.0f), 0.0f));
+  p.push_back(std::make_unique<APF>(
+      "chCrossover", "Ch Xover",
+      juce::NormalisableRange<float>(80.0f, 800.0f, 1.0f, 0.45f), 180.0f));
   p.push_back(std::make_unique<APB>("fxParallel", "Parallel FX", false));
 
   // MASTER
@@ -244,6 +247,7 @@ void FunkyMooseAudioProcessor::prepareToPlay(double sampleRate,
   chRateParam = apvts.getRawParameterValue("chRate");
   chDepthParam = apvts.getRawParameterValue("chDepth");
   chMixParam = apvts.getRawParameterValue("chMix");
+  chCrossoverParam = apvts.getRawParameterValue("chCrossover");
   fxParallelParam = apvts.getRawParameterValue("fxParallel");
   cabTypeParam = apvts.getRawParameterValue("cabType");
   irMixParam = apvts.getRawParameterValue("irMix");
@@ -567,6 +571,7 @@ void FunkyMooseAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     mod.setChorusRate(chRateParam->load());
     mod.setChorusDepth(chDepthParam->load());
     mod.setChorusMix(chMixParam->load() / 100.0f);
+    mod.setChorusCrossover(chCrossoverParam->load());
 
     mod.setParallel(fxParallelParam->load() > 0.5f);
   }
@@ -671,6 +676,10 @@ void FunkyMooseAudioProcessor::getStateInformation(
   auto state = apvts.copyState();
   state.setProperty("version", projectVersion, nullptr);
   state.setProperty("customIrPath", dspChain.getCabSim().customIrPath, nullptr);
+  state.setProperty("editorWidth",
+                    lastEditorWidth.load(std::memory_order_relaxed), nullptr);
+  state.setProperty("editorHeight",
+                    lastEditorHeight.load(std::memory_order_relaxed), nullptr);
   std::unique_ptr<juce::XmlElement> xml(state.createXml());
   copyXmlToBinary(*xml, destData);
 }
@@ -683,6 +692,10 @@ void FunkyMooseAudioProcessor::setStateInformation(const void *data,
     if (xmlState->hasTagName(apvts.state.getType())) {
       auto vt = juce::ValueTree::fromXml(*xmlState);
       juce::ignoreUnused(vt.getProperty("version", 0));
+
+      setLastEditorSize((int)vt.getProperty("editorWidth", defaultEditorWidth),
+                        (int)vt.getProperty("editorHeight",
+                                            defaultEditorHeight));
 
       juce::String irPath = vt.getProperty("customIrPath", "");
       if (irPath.isNotEmpty()) {

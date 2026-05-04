@@ -479,6 +479,8 @@ private:
                         juce::Slider::NoTextBox};
   HoverKnob chMixKnob{juce::Slider::RotaryHorizontalVerticalDrag,
                       juce::Slider::NoTextBox};
+  HoverKnob chCrossoverKnob{juce::Slider::RotaryHorizontalVerticalDrag,
+                            juce::Slider::NoTextBox};
 
   // MASTER
   HoverKnob outKnob{juce::Slider::RotaryHorizontalVerticalDrag,
@@ -536,7 +538,8 @@ private:
   std::unique_ptr<SliderAttachment> phRateAtt, phColAtt, phMixAtt;
 
   std::unique_ptr<ButtonAttachment> chOnAtt, fxParallelAtt; // Added Parallel
-  std::unique_ptr<SliderAttachment> chRateAtt, chDepthAtt, chMixAtt;
+  std::unique_ptr<SliderAttachment> chRateAtt, chDepthAtt, chMixAtt,
+      chCrossoverAtt;
 
   std::unique_ptr<SliderAttachment>      outAtt,
       mixAtt,
