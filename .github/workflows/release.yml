@@ -45,6 +45,33 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel
 
+      - name: Verify macOS bundles
+        run: |
+          codesign --verify --deep --strict --verbose=2 "build/FUNKY_MOOSE_AMP_artefacts/Release/Standalone/Funky Moose Amp.app"
+          codesign --verify --deep --strict --verbose=2 "build/FUNKY_MOOSE_AMP_artefacts/Release/AU/Funky Moose Amp.component"
+          codesign --verify --deep --strict --verbose=2 "build/FUNKY_MOOSE_AMP_artefacts/Release/VST3/Funky Moose Amp.vst3"
+
+      - name: Validate AU
+        run: auval -v aumf FMAP FMSA
+
+      - name: Download pluginval
+        run: |
+          curl -L -o pluginval.zip https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip -d pluginval
+          cp -X pluginval/pluginval.app/Contents/MacOS/pluginval pluginval/pluginval-cli
+          chmod +x pluginval/pluginval-cli
+          codesign --force --sign - pluginval/pluginval-cli
+
+      - name: Validate macOS VST3 with pluginval
+        run: |
+          mkdir -p pluginval-logs
+          pluginval/pluginval-cli \
+            --strictness-level 5 \
+            --skip-gui-tests \
+            --timeout-ms 60000 \
+            --output-dir pluginval-logs \
+            --validate "build/FUNKY_MOOSE_AMP_artefacts/Release/VST3/Funky Moose Amp.vst3"
+
       - name: Zip macOS Plugins
         run: |
           cd build/FUNKY_MOOSE_AMP_artefacts/Release
@@ -100,6 +127,35 @@ jobs:
         run: cmake --build build --config Release --parallel
         shell: pwsh
 
+      - name: Verify Windows artifacts
+        run: |
+          $rel = "build/FUNKY_MOOSE_AMP_artefacts/Release"
+          if (!(Test-Path "$rel/VST3/Funky Moose Amp.vst3")) {
+            throw "Missing Windows VST3 bundle"
+          }
+          $standalone = Get-ChildItem "$rel/Standalone" -Recurse -Filter "*.exe" | Select-Object -First 1
+          if ($null -eq $standalone) {
+            throw "Missing Windows Standalone executable"
+          }
+        shell: pwsh
+
+      - name: Download pluginval
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip" -OutFile "pluginval.zip"
+          Expand-Archive -Force "pluginval.zip" -DestinationPath "pluginval"
+        shell: pwsh
+
+      - name: Validate Windows VST3 with pluginval
+        run: |
+          New-Item -ItemType Directory -Force "pluginval-logs" | Out-Null
+          & ".\pluginval\pluginval.exe" `
+            --strictness-level 5 `
+            --skip-gui-tests `
+            --timeout-ms 60000 `
+            --output-dir "pluginval-logs" `
+            --validate "build\FUNKY_MOOSE_AMP_artefacts\Release\VST3\Funky Moose Amp.vst3"
+        shell: pwsh
+
       - name: Zip Windows Plugins
         run: |
           $rel = "build/FUNKY_MOOSE_AMP_artefacts/Release"
@@ -146,9 +202,15 @@ jobs:
           name: "FunkyMoose Amp ${{ github.ref_name }}"
           prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           body: |
-            ## 🦌 FunkyMoose Amp ${{ github.ref_name }}
+            ## FunkyMoose Amp ${{ github.ref_name }}
 
             Bass Guitar Amp Simulation für macOS und Windows.
+
+            ### Highlights in ${{ github.ref_name }}
+            - Fixed editor resizing persistence: supported hosts should now reopen the UI at the last saved size.
+            - Added Chorus XOVER control (80-800 Hz, default 180 Hz) so the low end stays dry/stable while chorus is applied above the crossover.
+            - Improved macOS bundle signing after all resources are copied.
+            - Added CI validation with auval, codesign checks, pluginval, and Windows artifact checks.
 
             ### Downloads
             | Datei | Beschreibung |

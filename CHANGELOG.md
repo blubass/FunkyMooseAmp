@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## v1.3.1
+
+KVR feedback update focused on host behavior, bass chorus workflow, and release validation.
+
+Added
+- **Chorus XOVER**: New 80-800 Hz crossover control for chorus. Low frequencies stay dry/stable while the chorus is applied above the crossover point.
+- **CI Validation**: GitHub Actions now runs macOS codesign checks, AU validation, pluginval, and Windows artifact/pluginval checks before uploading release files.
+
+Changed
+- **Sticky Editor Size**: The plugin now stores the last editor size in the processor state and restores it when the UI is reopened by supported hosts.
+- **macOS Signing**: Standalone, AU, and VST3 bundles are ad-hoc signed after all resources are copied.
+
+Fixed
+- **Legacy State Migration**: Older projects and presets without `chCrossover` are migrated to the 180 Hz default.
+
+---
+
 ## v1.3.0
 
 The "Moose Engine" update.

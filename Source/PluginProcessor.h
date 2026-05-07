@@ -13,7 +13,7 @@ class FunkyMooseAudioProcessor
       public juce::AudioProcessorValueTreeState::Listener,
       private juce::AsyncUpdater {
 public:
-  static constexpr int projectVersion = 130;
+  static constexpr int projectVersion = 131;
   static constexpr int defaultEditorWidth = 1024;
   static constexpr int defaultEditorHeight = 576;
 

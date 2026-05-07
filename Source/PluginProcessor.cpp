@@ -13,6 +13,15 @@ juce::File getFunkyMooseAppDataFolder() {
 
   return appData.getChildFile("FunkyMooseAmp");
 }
+
+bool stateHasParameter(const juce::ValueTree &state,
+                       const juce::String &parameterID) {
+  for (const auto &child : state)
+    if (child.getProperty("id").toString() == parameterID)
+      return true;
+
+  return false;
+}
 } // namespace
 
 //==============================================================================
@@ -692,6 +701,8 @@ void FunkyMooseAudioProcessor::setStateInformation(const void *data,
     if (xmlState->hasTagName(apvts.state.getType())) {
       auto vt = juce::ValueTree::fromXml(*xmlState);
       juce::ignoreUnused(vt.getProperty("version", 0));
+      const bool needsChorusCrossoverMigration =
+          !stateHasParameter(vt, "chCrossover");
 
       setLastEditorSize((int)vt.getProperty("editorWidth", defaultEditorWidth),
                         (int)vt.getProperty("editorHeight",
@@ -705,6 +716,11 @@ void FunkyMooseAudioProcessor::setStateInformation(const void *data,
       }
 
       apvts.replaceState(vt);
+
+      if (needsChorusCrossoverMigration) {
+        if (auto *p = apvts.getParameter("chCrossover"))
+          p->setValueNotifyingHost(p->convertTo0to1(180.0f));
+      }
 
       // Validation: Ensure all parameters are within their legal range
       for (auto* param : getParameters()) {
@@ -1612,6 +1628,8 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
     std::unique_ptr<juce::XmlElement> xml = juce::XmlDocument::parse(file);
     if (xml != nullptr) {
       auto state = juce::ValueTree::fromXml(*xml);
+      const bool needsChorusCrossoverMigration =
+          !stateHasParameter(state, "chCrossover");
       const juce::String irPath = state.getProperty("customIrPath", "");
       if (irPath.isNotEmpty())
         dspChain.getCabSim().loadCustomIr(irPath);
@@ -1619,6 +1637,11 @@ void FunkyMooseAudioProcessor::loadPreset(const juce::String &presetName) {
         dspChain.getCabSim().clearCustomIr();
 
       apvts.replaceState(state);
+
+      if (needsChorusCrossoverMigration) {
+        if (auto *p = apvts.getParameter("chCrossover"))
+          p->setValueNotifyingHost(p->convertTo0to1(180.0f));
+      }
     }
   }
 }

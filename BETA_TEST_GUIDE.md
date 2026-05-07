@@ -22,7 +22,7 @@ Willkommen zur Beta-Phase von **Funky Moose Bass Strategy**! Vielen Dank, dass d
 ### 4. FX-Sektion (The Character)
 *   **OCTAVER:** Von klassischem Sub-Bass (Oct 1) bis zu synthi-artigen Sounds (Oct 2). Verfolge deine Noten bis in den Keller – tiefer als die Witze des Bassisten von der Vorband.
 *   **ENVELOPE FILTER:** Der klassische "Quack". Verwandelt deinen Bass in einen funky sprechenden Elch.
-*   **PHASER & CHORUS:** Für räumliche Tiefe und Bewegung im Sound.
+*   **PHASER & CHORUS:** Für räumliche Tiefe und Bewegung im Sound. Der Chorus hat einen **XOVER**-Regler: Frequenzen darunter bleiben trocken/stabil, darüber arbeitet der Chorus.
 *   **PARALLEL MODE:** Mischt die Effekte parallel zum Dry-Signal, um das Bass-Fundament nie zu verlieren.
 
 ### 5. Master Sektion
@@ -44,6 +44,8 @@ Bitte achte besonders auf:
 - Das Tracking des Octavers bei tiefen Saiten (B-Saite).
 - Die Lesbarkeit des Tuners bei schlechtem Licht.
 - Das Verhalten des Smart Gates bei sehr leisem Spiel.
+- Windows VST3 in Reaper/Waveform: UI größer ziehen, schließen und wieder öffnen. Die Größe sollte erhalten bleiben.
+- Chorus XOVER: Bei aktivem Chorus sollte der Low-End-Bereich stabil bleiben. Gute Startwerte sind 180-250 Hz.
 
 Viel Spaß beim Testen!
 **Funky Moose Audio Team**

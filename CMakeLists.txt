@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.15)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "Build Universal Binary" FORCE)
 
-project(FUNKY_MOOSE_AMP VERSION 1.3.0 LANGUAGES C CXX)
+project(FUNKY_MOOSE_AMP VERSION 1.3.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,7 +52,7 @@ endif()
 juce_add_plugin(FUNKY_MOOSE_AMP
     COMPANY_NAME "Funky Moose Audio"
     PRODUCT_NAME "Funky Moose Amp"
-    VERSION "1.3.0"
+    VERSION "1.3.1"
     BUNDLE_ID "at.uwefelchle.funkymooseamp"
 
     PLUGIN_MANUFACTURER_CODE FMSA
@@ -140,18 +140,22 @@ if (APPLE AND TARGET FUNKY_MOOSE_AMP_Standalone)
         VERBATIM
     )
 
-    # Automatic signing with Microphone Entitlements (ad-hoc) - with error checking
-    # This helps macOS remember the permission across local rebuilds.
-    set(FUNKY_STANDALONE_ENTITLEMENTS
+    set(FUNKY_MACOS_ENTITLEMENTS
         "${CMAKE_CURRENT_SOURCE_DIR}/Source/mac_entitlements.plist")
 
-    add_custom_target(FUNKY_MOOSE_AMP_Standalone_ad_hoc_sign ALL
+    add_custom_target(FUNKY_MOOSE_AMP_macos_ad_hoc_sign ALL
         COMMAND ${CMAKE_COMMAND}
-            -DENTITLEMENTS=${FUNKY_STANDALONE_ENTITLEMENTS}
-            -DBUNDLE_PATH=$<TARGET_FILE:FUNKY_MOOSE_AMP_Standalone>
+            -DENTITLEMENTS=${FUNKY_MACOS_ENTITLEMENTS}
+            -DBUNDLE_PATH=$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_Standalone>/../..
             -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sign_bundle_ad_hoc.cmake"
-        DEPENDS FUNKY_MOOSE_AMP_Standalone
-        COMMENT "Signing Standalone with Microphone Entitlements..."
+        COMMAND ${CMAKE_COMMAND}
+            -DBUNDLE_PATH=$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_AU>/../..
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sign_bundle_ad_hoc.cmake"
+        COMMAND ${CMAKE_COMMAND}
+            -DBUNDLE_PATH=$<TARGET_FILE_DIR:FUNKY_MOOSE_AMP_VST3>/../..
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/sign_bundle_ad_hoc.cmake"
+        DEPENDS FUNKY_MOOSE_AMP_Standalone FUNKY_MOOSE_AMP_AU FUNKY_MOOSE_AMP_VST3
+        COMMENT "Signing macOS bundles after resources are copied..."
         VERBATIM
     )
 endif()
